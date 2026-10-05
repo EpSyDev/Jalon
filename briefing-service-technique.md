@@ -183,6 +183,8 @@ Un second axe, indépendant : **`reserves_ouvertes`** (au moins une réserve ouv
 
 - Un nouveau contrôle **crée une ligne**, il n'écrase jamais l'ancien.
 - Suppression physique interdite côté application (archivage uniquement).
+- Contrôle saisi par erreur : retiré (archivé) par un admin, tracé au journal ; l'échéance est recalculée.
+- Garde-fous de saisie (pas des règles réglementaires) : « conforme » ⇒ 0 réserve, « avec réserves » ⇒ au moins 1 ; date de réalisation ou de levée jamais dans le futur.
 
 ## 7. Sécurité et rôles
 

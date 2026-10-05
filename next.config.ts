@@ -9,6 +9,7 @@ const entetesSecurite = [
 ];
 
 const nextConfig: NextConfig = {
+  devIndicators: { position: "top-right" },
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: entetesSecurite }];

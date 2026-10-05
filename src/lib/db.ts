@@ -14,7 +14,13 @@ const globale = globalThis as unknown as { __jalonSql?: postgres.Sql };
  */
 export function sqlBrut(): postgres.Sql {
   // prepare: false requis par le pooler Supabase en mode transaction.
-  globale.__jalonSql ??= postgres(lireEnv().DATABASE_URL, { max: 5, prepare: false, onnotice: () => {} });
+  globale.__jalonSql ??= postgres(lireEnv().DATABASE_URL, {
+    max: 5,
+    prepare: false,
+    onnotice: () => {},
+    // Les dates métier restent des chaînes AAAA-MM-JJ : aucune conversion de fuseau possible.
+    types: { date: { to: 1082, from: [1082], serialize: (x: string) => x, parse: (x: string) => x } },
+  });
   return globale.__jalonSql;
 }
 
