@@ -8,6 +8,7 @@ import {
   HardHat,
   Package,
   Settings,
+  Upload,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
@@ -32,6 +33,7 @@ export const MODULES: Module[] = [
   { href: "/prestataires", libelle: "Prestataires", icone: Building2 },
   { href: "/statistiques", libelle: "Statistiques", icone: BarChart3 },
   { href: "/stocks", libelle: "Stocks", icone: Package },
+  { href: "/import", libelle: "Import", icone: Upload, roles: ["admin", "technicien"] },
   { href: "/parametres", libelle: "Paramètres", icone: Settings, roles: ["admin"] },
 ];
 

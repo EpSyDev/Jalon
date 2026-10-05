@@ -11,6 +11,8 @@ const entetesSecurite = [
 const nextConfig: NextConfig = {
   devIndicators: { position: "top-right" },
   poweredByHeader: false,
+  // Import Excel/CSV : 5 Mo de fichier maximum (vérifié aussi côté serveur).
+  experimental: { serverActions: { bodySizeLimit: "6mb" } },
   async headers() {
     return [{ source: "/:path*", headers: entetesSecurite }];
   },

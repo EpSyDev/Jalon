@@ -120,6 +120,10 @@
 }
 
 @layer base {
+  /* Colonne unique qui ne s'élargit jamais au-delà de l'écran (les utilitaires grid-cols-* priment). */
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   * {
     @apply border-border outline-ring/50;
   }
