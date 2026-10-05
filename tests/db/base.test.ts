@@ -221,3 +221,30 @@ describe("échéances", () => {
     expect(statut).toBe("a_jour");
   });
 });
+
+describe("recherche globale", () => {
+  const chercher = (role: "lecture" | "anon", q: string) =>
+    enTantQue(db, role, (tx) =>
+      tx.query<{ type: string; titre: string }>("select type, titre from public.rechercher($1, 10)", [q]),
+    );
+
+  it("ignore accents et casse", async () => {
+    const { rows } = await chercher("lecture", "CHAUDIERE");
+    expect(rows.some((r) => r.titre.includes("Chaudière gaz B"))).toBe(true);
+  });
+
+  it("tolère une faute de frappe", async () => {
+    const { rows } = await chercher("lecture", "ascenceur");
+    expect(rows.some((r) => r.titre.startsWith("Visite ascenseur"))).toBe(true);
+  });
+
+  it("exige tous les mots et trouve par code, prestataire ou localisation", async () => {
+    expect((await chercher("lecture", "tgbt-a")).rows[0].titre).toMatch(/TGBT-A/);
+    expect((await chercher("lecture", "biomaint")).rows.some((r) => r.type === "prestataire")).toBe(true);
+    expect((await chercher("lecture", "chaufferie pompe")).rows).toHaveLength(0);
+  });
+
+  it("refuse l'accès anonyme", async () => {
+    await expect(chercher("anon", "a")).rejects.toThrow(/permission denied/);
+  });
+});

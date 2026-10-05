@@ -1,7 +1,7 @@
 // Base Postgres embarquée (PGlite) en mémoire : migrations rejouées de zéro + seed fictif.
 
 import { PGlite, type Transaction } from "@electric-sql/pglite";
-import { preparerBase } from "../../dev/base-locale.mts";
+import { OPTIONS_PGLITE, preparerBase } from "../../dev/base-locale.mts";
 
 export const UTILISATEURS = {
   admin: "00000000-0000-4000-a000-000000000001",
@@ -12,7 +12,7 @@ export const UTILISATEURS = {
 export type Role = keyof typeof UTILISATEURS | "anon" | "admin_sans_2fa";
 
 export async function creerBase(): Promise<PGlite> {
-  const db = new PGlite();
+  const db = new PGlite(OPTIONS_PGLITE);
   await preparerBase(db);
   return db;
 }

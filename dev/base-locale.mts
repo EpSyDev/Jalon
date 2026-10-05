@@ -4,7 +4,12 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PGlite } from "@electric-sql/pglite";
+import type { PGlite, PGliteOptions } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
+import { unaccent } from "@electric-sql/pglite/contrib/unaccent";
+
+/** Extensions disponibles sur Supabase et utilisées par les migrations. */
+export const OPTIONS_PGLITE: PGliteOptions = { extensions: { pg_trgm, unaccent } };
 
 const RACINE = process.cwd();
 const DOSSIER_MIGRATIONS = join(RACINE, "supabase", "migrations");

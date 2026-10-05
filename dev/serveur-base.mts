@@ -6,7 +6,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
-import { preparerBase } from "./base-locale.mts";
+import { OPTIONS_PGLITE, preparerBase } from "./base-locale.mts";
 
 const DOSSIER = join(process.cwd(), ".data", "pglite");
 const PORT = 54329;
@@ -17,7 +17,7 @@ if (process.argv.includes("--reset")) {
 }
 
 mkdirSync(DOSSIER, { recursive: true });
-const db = await PGlite.create(DOSSIER);
+const db = await PGlite.create(DOSSIER, OPTIONS_PGLITE);
 const { appliquees, seedee } = await preparerBase(db);
 if (seedee) console.log("Base neuve : seed fictif chargé.");
 for (const m of appliquees) console.log(`Migration appliquée : ${m}`);

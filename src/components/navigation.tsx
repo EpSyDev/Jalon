@@ -8,6 +8,7 @@ import { estActif, modulesVisibles } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { RappelDonneesPatient } from "@/components/rappel-donnees-patient";
 import { BoutonDeconnexion } from "@/components/bouton-deconnexion";
+import { BoutonRecherche, FenetreRecherche } from "@/components/recherche";
 
 export function Navigation({ role, nom }: { role: Role; nom: string }) {
   const chemin = usePathname();
@@ -18,6 +19,9 @@ export function Navigation({ role, nom }: { role: Role; nom: string }) {
       {/* Bureau : barre latérale */}
       <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar p-3 md:flex">
         <div className="px-3 py-4 text-xl font-semibold">Jalon</div>
+        <div className="mb-3">
+          <BoutonRecherche variante="barre" />
+        </div>
         <nav className="grid gap-1" aria-label="Navigation principale">
           {modules.map(({ href, libelle, icone: Icone }) => (
             <Link
@@ -43,6 +47,14 @@ export function Navigation({ role, nom }: { role: Role; nom: string }) {
           <BoutonDeconnexion />
         </div>
       </aside>
+
+      {/* Mobile : en-tête avec recherche */}
+      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
+        <span className="text-lg font-semibold">Jalon</span>
+        <BoutonRecherche variante="icone" />
+      </header>
+
+      <FenetreRecherche />
 
       {/* Mobile : barre basse, utilisable au pouce */}
       <nav
