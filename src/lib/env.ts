@@ -39,3 +39,32 @@ export function lireEnv(): Env {
   });
   return cache;
 }
+
+// --- Rappels mail et cron (lus uniquement par le cron et la page Paramètres) ---
+
+const schemaRappels = z
+  .object({
+    CRON_SECRET: z.string().min(32, "CRON_SECRET : 32 caractères minimum"),
+    APP_URL: z.url(),
+    MAIL_MODE: z.enum(["local", "resend"]),
+    RESEND_API_KEY: z.string().min(10).optional(),
+    MAIL_EXPEDITEUR: z.string().min(3).optional(),
+  })
+  .refine((e) => e.MAIL_MODE === "local" || (e.RESEND_API_KEY && e.MAIL_EXPEDITEUR), {
+    message: "MAIL_MODE=resend exige RESEND_API_KEY et MAIL_EXPEDITEUR.",
+  })
+  .refine((e) => e.MAIL_MODE === "resend" || !process.env.VERCEL, {
+    message: "Les mails locaux (fichiers) sont interdits sur Vercel.",
+  });
+
+export type EnvRappels = z.infer<typeof schemaRappels>;
+
+export function lireEnvRappels(): EnvRappels {
+  return schemaRappels.parse({
+    CRON_SECRET: process.env.CRON_SECRET,
+    APP_URL: process.env.APP_URL,
+    MAIL_MODE: process.env.MAIL_MODE ?? "local",
+    RESEND_API_KEY: process.env.RESEND_API_KEY || undefined,
+    MAIL_EXPEDITEUR: process.env.MAIL_EXPEDITEUR || undefined,
+  });
+}

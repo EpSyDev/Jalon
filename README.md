@@ -32,6 +32,15 @@ Les tests de base rejouent toutes les migrations de zéro, chargent le seed fict
 droits par rôle (RLS), 2FA admin, interdiction de supprimer, archivage réservé aux admins, journal d'audit,
 contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
 
+## Rappels mail
+
+Un cron quotidien (Vercel Cron, 7 h) appelle `/api/cron/rappels` avec `CRON_SECRET`. Un seul mail par exécution :
+rappels J-60/J-30/J-7 (paramétrables) des contrôles, préavis de contrats et réserves, plus le récapitulatif
+hebdomadaire des retards, envoyé même vide. Anti-doublon par échéance ; enregistrement après envoi réussi uniquement.
+
+En local : `npm run cron` (application lancée) déclenche l'exécution ; les mails sont écrits dans `.data/mails`
+et visibles dans **Paramètres → Voir les mails envoyés**. Destinataires et seuils : page **Paramètres** (admin).
+
 ## Variables d'environnement
 
 | Variable | Mode | Rôle |
@@ -40,6 +49,10 @@ contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
 | `DATABASE_URL` | tous | Connexion Postgres (locale, ou pooler Supabase en mode transaction) |
 | `SECRET_SESSION_LOCALE` | local | Signature du cookie de session locale (≥ 32 caractères) |
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | supabase | Authentification |
+| `CRON_SECRET` | tous | Protège la route du cron (≥ 32 caractères) |
+| `APP_URL` | tous | Adresse publique, pour les liens des mails |
+| `MAIL_MODE` | tous | `local` (fichiers) ou `resend` (production, interdit en local sur Vercel) |
+| `RESEND_API_KEY`, `MAIL_EXPEDITEUR` | resend | Envoi réel (région d'envoi UE) |
 
 Aucune variable `NEXT_PUBLIC_` : tout passe par le serveur. Ne jamais committer `.env.local`.
 

@@ -4,7 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Action = (formData: FormData) => Promise<{ erreur: string } | undefined | void>;
+type Action = (formData: FormData) => Promise<{ erreur: string } | { message: string } | undefined | void>;
 
 /**
  * Formulaire branché sur une action serveur. Les saisies sont conservées en cas d'erreur
@@ -32,6 +32,7 @@ export function Formulaire({
   className?: string;
 }) {
   const [erreur, setErreur] = useState<string | null>(null);
+  const [succes, setSucces] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
 
   return (
@@ -44,8 +45,10 @@ export function Formulaire({
         const donnees = new FormData(formulaire);
         demarrer(async () => {
           const resultat = await action(donnees);
-          setErreur(resultat?.erreur ?? null);
-          if (!resultat?.erreur && reinitialiser) formulaire.reset();
+          const echec = resultat && "erreur" in resultat ? resultat.erreur : null;
+          setErreur(echec);
+          setSucces(resultat && "message" in resultat ? resultat.message : null);
+          if (!echec && reinitialiser) formulaire.reset();
         });
       }}
     >
@@ -53,6 +56,11 @@ export function Formulaire({
       {erreur && (
         <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
           {erreur}
+        </p>
+      )}
+      {succes && (
+        <p role="status" className="rounded-md bg-emerald-600/10 p-3 text-sm text-emerald-800 dark:text-emerald-300">
+          {succes}
         </p>
       )}
       <Button type="submit" variant={variante} disabled={enCours} className="h-12 text-base">

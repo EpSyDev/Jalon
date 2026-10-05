@@ -248,3 +248,33 @@ describe("recherche globale", () => {
     await expect(chercher("anon", "a")).rejects.toThrow(/permission denied/);
   });
 });
+
+describe("rappels (cron)", () => {
+  it("service_role lit la vue et écrit dans rappels_envoyes ; un utilisateur ne peut pas y écrire", async () => {
+    const n = await db.transaction(async (tx) => {
+      await tx.exec("set local role service_role");
+      await tx.query(
+        "insert into public.rappels_envoyes (cible_type, cible_id, seuil, echeance) values ('recap_hebdo', null, 'retard', '2026-10-05')",
+      );
+      return (await tx.query<{ n: number }>("select count(*)::int as n from public.v_plans_controle_echeance")).rows[0]
+        .n;
+    });
+    expect(n).toBeGreaterThan(0);
+    await expect(
+      enTantQue(db, "admin", (tx) =>
+        tx.query(
+          "insert into public.rappels_envoyes (cible_type, seuil, echeance) values ('recap_hebdo', 'retard', '2026-10-12')",
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("accepte les seuils paramétrables et refuse les seuils fantaisistes", async () => {
+    const sql =
+      "insert into public.rappels_envoyes (cible_type, cible_id, seuil, echeance) values ('plan_controle', gen_random_uuid(), $1, '2027-01-01')";
+    await db.query(sql, ["J45"]);
+    await db.query(sql, ["J365"]);
+    await expect(db.query(sql, ["J0"])).rejects.toThrow(/check constraint/);
+    await expect(db.query(sql, ["J366"])).rejects.toThrow(/check constraint/);
+  });
+});

@@ -37,3 +37,12 @@ export async function avecUtilisateur<T>(identite: Identite, fn: (tx: Tx) => Pro
   });
   return resultat as T;
 }
+
+/** Tâches système (cron) : rôle service_role, sans identité utilisateur. Jamais dans un parcours utilisateur. */
+export async function avecServiceRole<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const resultat = await sqlBrut().begin(async (tx) => {
+    await tx`set local role service_role`;
+    return fn(tx);
+  });
+  return resultat as T;
+}

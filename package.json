@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "db": "node dev/serveur-base.mts",
     "db:reset": "node dev/serveur-base.mts --reset",
-    "dev:app": "next dev"
+    "dev:app": "next dev",
+    "cron": "node --env-file=.env.local dev/declencher-cron.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

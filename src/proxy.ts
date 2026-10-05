@@ -3,7 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { lireEnv } from "@/lib/env";
 import { COOKIE_SESSION_LOCALE } from "@/lib/session-locale";
 
-const ROUTES_PUBLIQUES = ["/connexion"];
+// /api/cron : pas de session, protégé par CRON_SECRET dans la route elle-même.
+const ROUTES_PUBLIQUES = ["/connexion", "/api/cron"];
 
 function politiqueCsp(nonce: string): string {
   const dev = process.env.NODE_ENV === "development";
