@@ -278,3 +278,30 @@ describe("rappels (cron)", () => {
     await expect(db.query(sql, ["J366"])).rejects.toThrow(/check constraint/);
   });
 });
+
+describe("statistiques (vues SQL)", () => {
+  it("12 mois, dont le mois courant, et chiffres cohérents avec les tables", async () => {
+    const r = await enTantQue(db, "lecture", async (tx) => ({
+      mois: (await tx.query<{ n: number }>("select count(*)::int as n from public.v_stats_controles_mois")).rows[0].n,
+      realises: (await tx.query<{ n: number }>("select sum(realises)::int as n from public.v_stats_controles_mois"))
+        .rows[0].n,
+      attendus: (
+        await tx.query<{ n: number }>(
+          "select count(*)::int as n from public.controles where archive_le is null and date_realisation >= date_trunc('month', public.aujourdhui()) - interval '11 months'",
+        )
+      ).rows[0].n,
+      reserves: (await tx.query<{ ouvertes: number }>("select ouvertes from public.v_stats_reserves")).rows[0].ouvertes,
+      contrats: (await tx.query<{ actifs: number }>("select actifs from public.v_stats_contrats")).rows[0].actifs,
+    }));
+    expect(r.mois).toBe(12);
+    expect(r.realises).toBe(r.attendus);
+    expect(r.reserves).toBeGreaterThan(0);
+    expect(r.contrats).toBe(3);
+  });
+
+  it("refuse l'accès anonyme", async () => {
+    await expect(enTantQue(db, "anon", (tx) => tx.query("select * from public.v_stats_reserves"))).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+});
