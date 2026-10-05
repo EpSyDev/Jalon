@@ -29,3 +29,51 @@ describe("alerteContrat", () => {
     expect(alerteContrat({ date_fin, preavis_jours }, AUJ, 60)).toBe(attendu);
   });
 });
+
+describe("saisie des contrats et prestataires", async () => {
+  const { lireMontant, schemaContrat, schemaPrestataire } = await import("@/lib/metier/contrats");
+  const UUID = "00000000-0000-4000-a000-000000000001";
+
+  it.each([
+    ["1 234,56", 1234.56],
+    ["1234.5", 1234.5],
+    ["9 600 €", 9600],
+    ["", null],
+    ["12,345", "invalide"],
+    ["-5", "invalide"],
+    ["abc", "invalide"],
+  ] as const)("montant « %s » → %s", (saisie, attendu) => {
+    expect(lireMontant(saisie)).toBe(attendu);
+  });
+
+  it("contrat : champs facultatifs, préavis et reconduction", () => {
+    const c = schemaContrat.parse({
+      prestataire_id: UUID,
+      objet: "Maintenance",
+      preavis_jours: "90",
+      montant_annuel: "4 800",
+    });
+    expect(c).toMatchObject({ preavis_jours: 90, montant_annuel: 4800, reconduction_tacite: false, date_fin: null });
+    expect(
+      schemaContrat.parse({ prestataire_id: UUID, objet: "X", reconduction_tacite: "on" }).reconduction_tacite,
+    ).toBe(true);
+  });
+
+  it("contrat : refuse fin avant début, préavis négatif, montant illisible", () => {
+    const base = { prestataire_id: UUID, objet: "X" };
+    expect(schemaContrat.safeParse({ ...base, date_debut: "2026-01-01", date_fin: "2025-12-31" }).success).toBe(false);
+    expect(schemaContrat.safeParse({ ...base, preavis_jours: "-1" }).success).toBe(false);
+    expect(schemaContrat.safeParse({ ...base, montant_annuel: "beaucoup" }).success).toBe(false);
+  });
+
+  it("prestataire : mail normalisé, téléphone contrôlé", () => {
+    expect(
+      schemaPrestataire.parse({ nom: "Élec SA", email: "Contact@Elec.FR", telephone: "01 23 45 67 89" }),
+    ).toMatchObject({
+      email: "contact@elec.fr",
+      telephone: "01 23 45 67 89",
+    });
+    expect(schemaPrestataire.safeParse({ nom: "X", email: "pas-un-mail" }).success).toBe(false);
+    expect(schemaPrestataire.safeParse({ nom: "X", telephone: "appeler Paul" }).success).toBe(false);
+  });
+});

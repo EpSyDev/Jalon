@@ -3,11 +3,12 @@ import type { ReactNode } from "react";
 import { fr } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
 import { CircleCheck } from "lucide-react";
+import { messageAlerteContrat } from "@/components/alerte-contrat";
 import { BadgeReserves } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_GRAVITE } from "@/lib/format";
-import { alerteContrat, limitePreavis, type AlerteContrat } from "@/lib/metier/contrats";
+import { alerteContrat, type AlerteContrat } from "@/lib/metier/contrats";
 import { aujourdhuiParis, FUSEAU } from "@/lib/metier/echeance";
 import { donneesAujourdhui, type ContratSuivi, type ReserveOuverte } from "@/lib/requetes/aujourdhui";
 import type { PlanEcheance } from "@/lib/requetes/controles";
@@ -86,21 +87,6 @@ function LigneReserve({ reserve, aujourdhui }: { reserve: ReserveOuverte; aujour
       </Link>
     </li>
   );
-}
-
-function messageContrat(c: ContratSuivi, alerte: AlerteContrat): string {
-  const limite = formaterDate(limitePreavis(c.date_fin, c.preavis_jours));
-  const fin = formaterDate(c.date_fin);
-  switch (alerte) {
-    case "echu":
-      return `Échu le ${fin}`;
-    case "preavis_depasse":
-      return c.reconduction_tacite
-        ? `Préavis dépassé le ${limite} (reconduction tacite prévue au contrat) · fin le ${fin}`
-        : `Préavis dépassé le ${limite} · fin le ${fin}`;
-    case "a_decider":
-      return c.preavis_jours ? `Préavis à donner avant le ${limite} · fin le ${fin}` : `Fin le ${fin}`;
-  }
 }
 
 export default async function PageAujourdhui() {
@@ -185,12 +171,14 @@ export default async function PageAujourdhui() {
 
       <Section titre="Contrats : décision à prendre" nombre={contratsAlerte.length} ton="ambre">
         {contratsAlerte.map(({ contrat: c, alerte }) => (
-          <li key={c.id} className="grid gap-0.5 rounded-lg border p-3">
-            <span className="font-medium">{c.objet}</span>
-            <span className="text-sm text-muted-foreground">{c.prestataire_nom}</span>
-            <span className={cn("text-sm", alerte !== "a_decider" && "font-medium text-destructive")}>
-              {messageContrat(c, alerte)}
-            </span>
+          <li key={c.id}>
+            <Link href={`/contrats/${c.id}`} className="grid gap-0.5 rounded-lg border p-3">
+              <span className="font-medium">{c.objet}</span>
+              <span className="text-sm text-muted-foreground">{c.prestataire_nom}</span>
+              <span className={cn("text-sm", alerte !== "a_decider" && "font-medium text-destructive")}>
+                {messageAlerteContrat(c, alerte)}
+              </span>
+            </Link>
           </li>
         ))}
       </Section>
