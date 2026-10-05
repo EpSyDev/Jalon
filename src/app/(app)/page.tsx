@@ -159,18 +159,20 @@ export default async function PageAujourdhui() {
 
       <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
         {interventions.map((i) => (
-          <li key={i.id} className="grid gap-0.5 rounded-lg border p-3">
-            <span className="font-medium">{i.titre}</span>
-            <span className="text-sm text-muted-foreground">
-              {[
-                i.equipement_code,
-                { a_faire: "À faire", en_cours: "En cours", en_attente: "En attente" }[i.statut],
-                i.assignee_nom,
-                i.date_prevue && `prévue le ${formaterDate(i.date_prevue)}`,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </span>
+          <li key={i.id}>
+            <Link href={`/interventions/${i.id}`} className="grid gap-0.5 rounded-lg border p-3">
+              <span className="font-medium">{i.titre}</span>
+              <span className="text-sm text-muted-foreground">
+                {[
+                  i.equipement_code,
+                  { a_faire: "À faire", en_cours: "En cours", en_attente: "En attente" }[i.statut],
+                  i.assignee_nom,
+                  i.date_prevue && `prévue le ${formaterDate(i.date_prevue)}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </Link>
           </li>
         ))}
       </Section>
