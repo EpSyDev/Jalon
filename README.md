@@ -1,36 +1,66 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Jalon — outil du service technique
 
-## Getting Started
+Référence fonctionnelle : [briefing-service-technique.md](briefing-service-technique.md).
 
-First, run the development server:
+## Prérequis
+
+- Node.js 20+
+- Docker Desktop (uniquement pour lancer Supabase en local)
+
+## Tests (sans Docker)
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm test          # logique métier + base Postgres embarquée (PGlite)
+npm run typecheck
+npm run lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Les tests de base rejouent toutes les migrations de zéro, chargent le seed fictif et vérifient :
+droits par rôle (RLS), 2FA admin, interdiction de supprimer, archivage réservé aux admins, journal d'audit,
+contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Lancer l'application en local
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npx supabase start            # base + auth locales (Docker)
+npx supabase db reset         # migrations + seed fictif
+npx supabase status           # récupérer « API URL » et « Publishable key »
+cp .env.example .env.local    # puis y reporter ces deux valeurs
+npm run dev                   # http://localhost:3000
+```
 
-## Learn More
+Comptes fictifs (mot de passe `Jalon-dev-2026`) : `admin@jalon.local`, `technicien@jalon.local`, `lecture@jalon.local`.
+L'admin doit configurer la double authentification à la première connexion (application TOTP) ;
+sans 2FA validée, la base ne lui accorde que la lecture.
 
-To learn more about Next.js, take a look at the following resources:
+Mails de développement (Inbucket) : http://127.0.0.1:54324.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Variables d'environnement
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable | Rôle |
+|---|---|
+| `SUPABASE_URL` | URL de l'API Supabase |
+| `SUPABASE_PUBLISHABLE_KEY` | Clé publique Supabase (la RLS protège les données) |
 
-## Deploy on Vercel
+Aucune variable `NEXT_PUBLIC_` : tout l'accès Supabase passe par le serveur. Ne jamais committer `.env.local`.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Déploiement (après validation locale et feu vert DSI)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Projet Supabase en région **Paris (eu-west-3)**, inscriptions désactivées, MFA TOTP activée, mot de passe ≥ 12 caractères.
+2. `npx supabase link` puis `npx supabase db push` (migrations uniquement, **pas** de seed).
+3. Créer les comptes par invitation depuis le tableau de bord, puis fixer les rôles :
+   `update public.profils set role = 'admin' where id = '…';`
+4. Vercel : importer le dépôt, renseigner les variables ci-dessus. `vercel.json` force la région `cdg1` (Paris).
+
+## Structure
+
+```
+supabase/migrations/   schéma, audit, RLS, vue des échéances (SQL versionné)
+supabase/seed/         données fictives (01 = comptes locaux, 02 = données métier)
+src/lib/metier/        règles métier pures et testées
+src/lib/auth.ts        session, rôles, 2FA
+src/proxy.ts           rafraîchissement de session, redirection, CSP à nonce
+src/app/(app)/         pages authentifiées
+tests/                 Vitest (unitaires + base PGlite)
+```
