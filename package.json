@@ -13,7 +13,9 @@
     "db": "node dev/serveur-base.mts",
     "db:reset": "node dev/serveur-base.mts --reset",
     "dev:app": "next dev",
-    "cron": "node --env-file=.env.local dev/declencher-cron.mjs"
+    "cron": "node --env-file=.env.local dev/declencher-cron.mjs",
+    "sauvegarde": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local dev/sauvegarde.mts",
+    "restaurer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file-if-exists=.env.local dev/restaurer.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

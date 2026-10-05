@@ -46,3 +46,6 @@ next-env.d.ts
 supabase/.temp
 supabase/.branches
 .data
+
+# sauvegardes de données (jamais dans le dépôt)
+sauvegardes/

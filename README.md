@@ -41,6 +41,23 @@ hebdomadaire des retards, envoyé même vide. Anti-doublon par échéance ; enre
 En local : `npm run cron` (application lancée) déclenche l'exécution ; les mails sont écrits dans `.data/mails`
 et visibles dans **Paramètres → Voir les mails envoyés**. Destinataires et seuils : page **Paramètres** (admin).
 
+## Sauvegarde et restauration
+
+Indépendantes de Vercel et Supabase (l'offre gratuite de Supabase ne fournit aucune sauvegarde téléchargeable) :
+
+```bash
+npm run sauvegarde                                   # base de .env.local → sauvegardes/jalon-….json
+DATABASE_URL=postgres://… npm run sauvegarde         # base de production (pooler Supabase)
+npm run restaurer -- sauvegardes/jalon-….json --confirmer
+```
+
+Un admin peut aussi télécharger la sauvegarde depuis **Paramètres**. Le fichier contient toutes les tables, journal
+d'audit compris : à stocker sur un support indépendant (réseau de l'établissement, disque chiffré), jamais dans le dépôt.
+
+La restauration exige une base au même schéma (mêmes migrations), sans données métier, et dont les comptes
+utilisateurs existent déjà (`--comptes-locaux` les crée en développement). Elle se fait en une transaction :
+tout ou rien. Testée automatiquement (`tests/db/sauvegarde.test.ts`) et manuellement en ligne de commande.
+
 ## Variables d'environnement
 
 | Variable | Mode | Rôle |

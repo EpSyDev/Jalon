@@ -18,7 +18,11 @@ function lire(...chemin: string[]): string {
   return readFileSync(join(RACINE, ...chemin), "utf8");
 }
 
-export async function preparerBase(db: PGlite): Promise<{ appliquees: string[]; seedee: boolean }> {
+export async function preparerBase(
+  db: PGlite,
+  options: { seed?: boolean } = {},
+): Promise<{ appliquees: string[]; seedee: boolean }> {
+  const seed = options.seed ?? true;
   const { rows } = await db.query<{ existe: boolean }>(
     "select exists (select 1 from pg_namespace where nspname = 'auth') as existe",
   );
@@ -54,9 +58,9 @@ export async function preparerBase(db: PGlite): Promise<{ appliquees: string[]; 
     appliquees.push(fichier);
   }
 
-  if (neuve) {
+  if (neuve && seed) {
     await db.exec(lire("dev", "utilisateurs-locaux.sql"));
     await db.exec(lire("supabase", "seed", "02_donnees.sql"));
   }
-  return { appliquees, seedee: neuve };
+  return { appliquees, seedee: neuve && seed };
 }

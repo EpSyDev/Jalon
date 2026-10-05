@@ -96,6 +96,18 @@ export default async function PageParametres() {
         </div>
       </section>
 
+      <section className="grid gap-3 rounded-lg border p-4">
+        <h2 className="text-lg font-semibold">Sauvegarde</h2>
+        <p className="text-sm text-muted-foreground">
+          Export complet (toutes les tables, journal compris) à conserver hors de l&apos;hébergement : réseau de
+          l&apos;établissement ou disque chiffré. À faire au moins chaque semaine tant que l&apos;offre gratuite de
+          Supabase ne fournit pas de sauvegarde téléchargeable.
+        </p>
+        <a href="/api/sauvegarde" className="w-fit underline">
+          Télécharger une sauvegarde (JSON)
+        </a>
+      </section>
+
       <section className="grid gap-4 rounded-lg border p-4">
         <h2 className="text-lg font-semibold">Utilisateurs</h2>
         <p className="text-sm text-muted-foreground">
