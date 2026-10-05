@@ -11,11 +11,10 @@ Node.js 22+ uniquement. Ni Docker ni Supabase pour développer.
 ```bash
 npm install
 cp .env.example .env.local   # puis générer SECRET_SESSION_LOCALE (commande dans le fichier)
-npm run db                   # terminal 1 : base Postgres locale (PGlite) persistée dans .data/
-npm run dev                  # terminal 2 : http://localhost:3000
+npm run dev                  # base locale (PGlite, persistée dans .data/) + application : http://localhost:3000
 ```
 
-`npm run db:reset` repart de zéro (migrations + seed fictif). Les nouvelles migrations sont appliquées
+Arrêt : Ctrl+C (arrête les deux). `npm run db:reset` repart de zéro (migrations + seed fictif). Les nouvelles migrations sont appliquées
 automatiquement au démarrage de `npm run db`.
 
 Connexion : choisir un des comptes fictifs (admin, technicien, lecture). Ce mode est refusé par l'application

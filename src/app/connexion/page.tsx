@@ -9,8 +9,19 @@ import { FormulaireConnexion } from "./formulaires";
 export const metadata = { title: "Connexion — Jalon" };
 
 async function ComptesLocaux() {
-  const comptes = await sqlBrut()<{ id: string; nom: string; role: Role }[]>`
-    select id, nom, role from public.profils where archive_le is null order by role, nom`;
+  let comptes: { id: string; nom: string; role: Role }[];
+  try {
+    comptes = await sqlBrut()<{ id: string; nom: string; role: Role }[]>`
+      select id, nom, role from public.profils where archive_le is null order by role, nom`;
+  } catch (e) {
+    if ((e as { code?: string }).code !== "ECONNREFUSED") throw e;
+    return (
+      <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+        Base locale non démarrée. Lancez <code>npm run dev</code> (base + application) ou <code>npm run db</code> dans
+        un autre terminal, puis rechargez la page.
+      </p>
+    );
+  }
   return (
     <div className="grid gap-3">
       <p className="rounded-md bg-muted p-3 text-sm">Mode développement local : choisissez un compte fictif.</p>
