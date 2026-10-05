@@ -1,0 +1,65 @@
+import "server-only";
+import type { Tx } from "@/lib/db";
+import { listerPlans } from "@/lib/requetes/controles";
+
+export type ReserveOuverte = {
+  id: string;
+  description: string;
+  gravite: "mineure" | "majeure" | "critique" | null;
+  echeance_levee: string | null;
+  plan_controle_id: string;
+  type_libelle: string;
+  perimetre: string | null;
+};
+
+export type InterventionUrgente = {
+  id: string;
+  titre: string;
+  statut: "a_faire" | "en_cours" | "en_attente";
+  date_prevue: string | null;
+  equipement_code: string | null;
+  assignee_nom: string | null;
+};
+
+export type ContratSuivi = {
+  id: string;
+  objet: string;
+  prestataire_nom: string;
+  date_fin: string;
+  preavis_jours: number | null;
+  reconduction_tacite: boolean;
+};
+
+/** Toutes les données de l'écran « Aujourd'hui », en une transaction. */
+export async function donneesAujourdhui(tx: Tx) {
+  const [plans, reserves, interventions, contrats, [seuil]] = await Promise.all([
+    listerPlans(tx),
+    tx<ReserveOuverte[]>`
+      select r.id, r.description, r.gravite, r.echeance_levee, p.id as plan_controle_id, t.libelle as type_libelle,
+        coalesce(p.perimetre_libelle, e.code) as perimetre
+      from public.reserves r
+      join public.controles c on c.id = r.controle_id and c.archive_le is null
+      join public.plans_controle p on p.id = c.plan_controle_id and p.archive_le is null
+      join public.types_controle t on t.id = p.type_controle_id
+      left join public.equipements e on e.id = p.equipement_id
+      where r.statut = 'ouverte' and r.archive_le is null
+      order by r.echeance_levee nulls last, r.date_constat`,
+    tx<InterventionUrgente[]>`
+      select i.id, i.titre, i.statut, i.date_prevue, e.code as equipement_code, pf.nom as assignee_nom
+      from public.interventions i
+      left join public.equipements e on e.id = i.equipement_id
+      left join public.profils pf on pf.id = i.assignee_id
+      where i.priorite = 'urgente' and i.statut not in ('terminee', 'annulee') and i.archive_le is null
+      order by i.date_demande`,
+    tx<ContratSuivi[]>`
+      select c.id, c.objet, p.nom as prestataire_nom, c.date_fin, c.preavis_jours, c.reconduction_tacite
+      from public.contrats c
+      join public.prestataires p on p.id = c.prestataire_id
+      where c.date_fin is not null and c.archive_le is null
+      order by c.date_fin`,
+    tx<{ jours: number }[]>`
+      select coalesce((select (valeur #>> '{}')::int from public.parametres where cle = 'seuil_a_echeance_jours'), 60)
+        as jours`,
+  ]);
+  return { plans, reserves, interventions, contrats, seuilJours: seuil.jours };
+}

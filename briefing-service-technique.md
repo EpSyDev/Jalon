@@ -179,6 +179,12 @@ Un second axe, indépendant : **`reserves_ouvertes`** (au moins une réserve ouv
 - Anti-doublon via `rappels_envoyes`. Seuils et destinataires dans `parametres`.
 - Un seul mail récapitulatif par exécution plutôt qu'un mail par objet.
 
+### 6.3 bis Alerte de fin de contrat (proposée, à valider)
+
+- Date utile = **limite de préavis** = date de fin − préavis (jours) ; sans préavis, la date de fin.
+- `echu` : date de fin passée · `preavis_depasse` : limite passée, fin à venir · `a_decider` : limite ≤ aujourd'hui + seuil (même seuil que les contrôles).
+- Sans date de fin : aucune alerte. Fonction pure `alerteContrat`, testée.
+
 ### 6.4 Historique
 
 - Un nouveau contrôle **crée une ligne**, il n'écrase jamais l'ancien.
