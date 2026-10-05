@@ -17,10 +17,11 @@ function Erreur({ message }: { message: string | null }) {
   );
 }
 
-export function FormulaireConnexion() {
+export function FormulaireConnexion({ suite }: { suite: string }) {
   const [etat, action, enCours] = useActionState(seConnecter, ETAT_INITIAL);
   return (
     <form action={action} className="grid gap-4">
+      <input type="hidden" name="suite" value={suite} />
       <div className="grid gap-2">
         <Label htmlFor="email">Adresse mail</Label>
         <Input id="email" name="email" type="email" autoComplete="username" required className="h-12 text-base" />

@@ -7,7 +7,15 @@ const versListe = (liste: { id: string; libelle: string }[]) =>
   liste.map((o) => ({ valeur: o.id, libelle: o.libelle }));
 
 /** Champs communs à la création et à la modification d'un plan de contrôle. */
-export function ChampsPlan({ options, plan }: { options: Options; plan?: PlanDetail }) {
+export function ChampsPlan({
+  options,
+  plan,
+  equipementParDefaut,
+}: {
+  options: Options;
+  plan?: PlanDetail;
+  equipementParDefaut?: string;
+}) {
   return (
     <>
       <ChampListe
@@ -21,7 +29,7 @@ export function ChampsPlan({ options, plan }: { options: Options; plan?: PlanDet
       <ChampListe
         nom="equipement_id"
         libelle="Équipement"
-        defaultValue={plan?.equipement_id ?? ""}
+        defaultValue={plan?.equipement_id ?? equipementParDefaut ?? ""}
         vide="Aucun (installation entière)"
         options={versListe(options.equipements)}
       />

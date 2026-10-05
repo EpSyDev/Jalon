@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { sqlBrut } from "@/lib/db";
 import { lireEnv } from "@/lib/env";
+import { cheminSur } from "@/lib/metier/parc";
 import { COOKIE_SESSION_LOCALE, signerSession } from "@/lib/session-locale";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 
@@ -26,7 +27,7 @@ export async function seConnecter(_: EtatFormulaire, formData: FormData): Promis
   });
   // Message volontairement générique : ne pas révéler si le compte existe.
   if (error) return { erreur: "Identifiants incorrects ou trop de tentatives. Réessayez." };
-  redirect("/");
+  redirect(cheminSur(formData.get("suite")));
 }
 
 const schemaCode = z.object({
@@ -66,5 +67,5 @@ export async function connexionLocale(formData: FormData) {
     sameSite: "lax",
     path: "/",
   });
-  redirect("/");
+  redirect(cheminSur(formData.get("suite")));
 }

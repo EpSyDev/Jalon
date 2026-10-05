@@ -60,7 +60,7 @@ export async function proxy(request: NextRequest) {
   if (!connecte && !publique) {
     const url = request.nextUrl.clone();
     url.pathname = "/connexion";
-    url.search = "";
+    url.search = chemin === "/" ? "" : `?suite=${encodeURIComponent(chemin + request.nextUrl.search)}`;
     reponse = NextResponse.redirect(url);
   }
 

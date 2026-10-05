@@ -7,8 +7,10 @@ import { ChampsPlan } from "../champs-plan";
 
 export const metadata = { title: "Nouveau plan de contrôle — Jalon" };
 
-export default async function PageNouveauPlan() {
+export default async function PageNouveauPlan({ searchParams }: PageProps<"/controles/plans/nouveau">) {
+  const { equipement } = await searchParams;
   const options = await requete((tx) => optionsPlan(tx), ["admin", "technicien"]);
+  const equipementParDefaut = options.equipements.find((e) => e.id === equipement)?.id;
 
   return (
     <div className="mx-auto grid max-w-xl gap-4 p-4 md:p-8">
@@ -20,7 +22,7 @@ export default async function PageNouveauPlan() {
         </>
       ) : (
         <Formulaire action={creerPlan} libelle="Créer le plan">
-          <ChampsPlan options={options} />
+          <ChampsPlan options={options} equipementParDefaut={equipementParDefaut} />
         </Formulaire>
       )}
     </div>

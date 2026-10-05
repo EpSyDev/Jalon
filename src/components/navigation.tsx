@@ -17,7 +17,7 @@ export function Navigation({ role, nom }: { role: Role; nom: string }) {
   return (
     <>
       {/* Bureau : barre latérale */}
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col border-r bg-sidebar p-3 md:flex">
+      <aside className="fixed inset-y-0 left-0 hidden w-60 print:hidden flex-col border-r bg-sidebar p-3 md:flex">
         <div className="px-3 py-4 text-xl font-semibold">Jalon</div>
         <div className="mb-3">
           <BoutonRecherche variante="barre" />
@@ -49,7 +49,7 @@ export function Navigation({ role, nom }: { role: Role; nom: string }) {
       </aside>
 
       {/* Mobile : en-tête avec recherche */}
-      <header className="sticky top-0 z-10 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-10 flex h-14 print:hidden items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:hidden">
         <span className="text-lg font-semibold">Jalon</span>
         <BoutonRecherche variante="icone" />
       </header>
@@ -58,7 +58,7 @@ export function Navigation({ role, nom }: { role: Role; nom: string }) {
 
       {/* Mobile : barre basse, utilisable au pouce */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 print:hidden border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
         aria-label="Navigation principale"
       >
         {modules

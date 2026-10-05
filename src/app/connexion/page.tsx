@@ -3,12 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { sqlBrut } from "@/lib/db";
 import { lireEnv } from "@/lib/env";
 import { LIBELLES_ROLE, type Role } from "@/lib/roles";
+import { cheminSur } from "@/lib/metier/parc";
 import { connexionLocale } from "./actions";
 import { FormulaireConnexion } from "./formulaires";
 
 export const metadata = { title: "Connexion — Jalon" };
 
-async function ComptesLocaux() {
+async function ComptesLocaux({ suite }: { suite: string }) {
   let comptes: { id: string; nom: string; role: Role }[];
   try {
     comptes = await sqlBrut()<{ id: string; nom: string; role: Role }[]>`
@@ -28,6 +29,7 @@ async function ComptesLocaux() {
       {comptes.map((c) => (
         <form key={c.id} action={connexionLocale}>
           <input type="hidden" name="utilisateurId" value={c.id} />
+          <input type="hidden" name="suite" value={suite} />
           <Button type="submit" variant="outline" className="h-14 w-full justify-between text-base">
             {c.nom}
             <span className="text-sm text-muted-foreground">{LIBELLES_ROLE[c.role]}</span>
@@ -38,7 +40,8 @@ async function ComptesLocaux() {
   );
 }
 
-export default function PageConnexion() {
+export default async function PageConnexion({ searchParams }: PageProps<"/connexion">) {
+  const suite = cheminSur((await searchParams).suite);
   const local = lireEnv().AUTH_MODE === "local";
   return (
     <main className="flex min-h-dvh items-center justify-center p-4">
@@ -47,7 +50,7 @@ export default function PageConnexion() {
           <CardTitle className="text-2xl">Jalon</CardTitle>
           <CardDescription>Service technique — accès réservé à l&apos;équipe.</CardDescription>
         </CardHeader>
-        <CardContent>{local ? <ComptesLocaux /> : <FormulaireConnexion />}</CardContent>
+        <CardContent>{local ? <ComptesLocaux suite={suite} /> : <FormulaireConnexion suite={suite} />}</CardContent>
       </Card>
     </main>
   );

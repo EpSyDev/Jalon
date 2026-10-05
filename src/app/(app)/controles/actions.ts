@@ -1,13 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect, unstable_rethrow } from "next/navigation";
-import { z } from "zod";
-import { requete } from "@/lib/auth";
-import type { Tx } from "@/lib/db";
-import { messageErreurBase } from "@/lib/erreurs";
+import { redirect } from "next/navigation";
+import type { z } from "zod";
 import {
-  premierMessage,
+  ADMIN,
+  executer,
+  ID_INVALIDE,
+  idsValides,
+  RefusMetier,
+  valider as validerAvec,
+  type Resultat,
+} from "@/lib/actions";
+import {
   schemaControle,
   schemaFamille,
   schemaLeveeReserve,
@@ -15,12 +20,6 @@ import {
   schemaReserve,
   schemaTypeControle,
 } from "@/lib/metier/controles";
-import type { Role } from "@/lib/roles";
-
-export type Resultat = { erreur: string } | undefined;
-
-const ECRITURE: Role[] = ["admin", "technicien"];
-const ADMIN: Role[] = ["admin"];
 
 const LIBELLES: Record<string, string> = {
   libelle: "Libellé",
@@ -44,36 +43,7 @@ const LIBELLES: Record<string, string> = {
   date_levee: "Date de levée",
 };
 
-const ID_INVALIDE: Resultat = { erreur: "Identifiant invalide : rechargez la page." };
-
-/** Les identifiants liés (bind) transitent par le client : on les revalide. */
-function idsValides(...ids: string[]): boolean {
-  return ids.every((id) => z.uuid().safeParse(id).success);
-}
-
-/** Refus métier dont le message est affiché tel quel. */
-class RefusMetier extends Error {}
-
-type Saisie<S extends z.ZodType> =
-  { ok: true; donnees: z.output<S>; erreur?: undefined } | { ok: false; donnees?: undefined; erreur: string };
-
-function valider<S extends z.ZodType>(schema: S, formData: FormData): Saisie<S> {
-  const saisie = schema.safeParse(Object.fromEntries(formData));
-  return saisie.success
-    ? { ok: true, donnees: saisie.data }
-    : { ok: false, erreur: premierMessage(saisie.error, LIBELLES) };
-}
-
-/** Exécute sous l'identité de l'utilisateur (RLS) et traduit les erreurs. Renvoie un message ou null. */
-async function executer(fn: (tx: Tx) => Promise<void>, roles: Role[] = ECRITURE): Promise<string | null> {
-  try {
-    await requete((tx) => fn(tx), roles);
-    return null;
-  } catch (e) {
-    unstable_rethrow(e);
-    return e instanceof RefusMetier ? e.message : messageErreurBase(e);
-  }
-}
+const valider = <S extends z.ZodType>(schema: S, formData: FormData) => validerAvec(schema, formData, LIBELLES);
 
 function rafraichir() {
   revalidatePath("/controles", "layout");

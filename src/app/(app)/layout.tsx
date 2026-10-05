@@ -6,7 +6,7 @@ export default async function LayoutApplication({ children }: { children: React.
   return (
     <>
       <Navigation role={utilisateur.role} nom={utilisateur.nom} />
-      <main className="pb-24 md:pb-0 md:pl-60">{children}</main>
+      <main className="pb-24 md:pb-0 md:pl-60 print:p-0">{children}</main>
     </>
   );
 }
