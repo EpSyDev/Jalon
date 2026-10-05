@@ -35,7 +35,12 @@
 
 ### 3.1 Local d'abord
 
-- Chaque bloc est **validé en local avant tout déploiement** : Supabase CLI (`supabase start`, nécessite Docker Desktop) pour l'application complète, PGlite (Postgres embarqué, sans Docker) pour les tests automatisés de la base.
+- Chaque bloc est **validé en local avant tout déploiement**, sans rien installer d'autre que Node :
+  - base de développement = **PGlite persisté** dans `.data/` (vrai Postgres, mêmes migrations), servi par `npm run db` ;
+  - connexion locale par choix d'un compte fictif (`AUTH_MODE=local`), **refusée par l'application** sur Vercel ou avec une base distante ;
+  - mails écrits dans un dossier local et consultables dans l'application (bloc B5) ; cron déclenché par une commande ;
+  - test mobile réel (QR codes) sur le wifi local.
+- Restent à vérifier lors de la mise en ligne : connexion Supabase Auth + 2FA, envoi réel des mails, cron Vercel.
 - **Aucune donnée réelle** (même technique) avant le feu vert écrit de la direction/DSI. D'ici là : seed fictif uniquement.
 - `supabase db reset` doit rejouer migrations + seed de zéro sans erreur, à chaque commit touchant la base.
 
@@ -79,9 +84,9 @@
 | Framework | Next.js (App Router) + TypeScript strict |
 | Hébergement | Vercel (déploiement dès le premier bloc) |
 | Base de données | PostgreSQL via Supabase (free tier), **région UE** |
-| Authentification | Supabase Auth (email + mot de passe, 2FA si disponible) |
+| Authentification | Supabase Auth (email + mot de passe, 2FA TOTP) en production ; mode local de développement |
 | Sécurité des données | Row Level Security (RLS) activée sur toutes les tables |
-| ORM / accès | Supabase client ou Drizzle ; migrations SQL versionnées dans `/supabase/migrations` |
+| Accès aux données | SQL direct (`postgres`), chaque requête dans une transaction sous l'identité de l'utilisateur (`role authenticated` + claims) : la RLS s'applique comme via PostgREST, même code en local et en production. Migrations SQL versionnées dans `/supabase/migrations` |
 | UI | Tailwind CSS + composants shadcn/ui |
 | Validation | Zod (schémas partagés client/serveur) |
 | Mails | Resend (ou équivalent), expéditeur sur un domaine à définir |
@@ -211,7 +216,7 @@ Claude Code génère, sans logique métier approfondie :
 - `README.md` : installation, variables d'environnement, déploiement Vercel.
 - Premier déploiement fonctionnel.
 
-**Validation Phase A** : en local d'abord (tests PGlite verts, `next build` OK, connexion des 3 rôles via `supabase start`), puis seulement déploiement Vercel accessible.
+**Validation Phase A** : en local d'abord (tests PGlite verts, `next build` OK, connexion des 3 rôles en mode local), puis seulement déploiement Vercel accessible.
 
 ### Phase B : finalisation, un bloc à la fois (on valide, puis on passe au suivant)
 

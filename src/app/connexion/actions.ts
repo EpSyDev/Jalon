@@ -1,7 +1,11 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { sqlBrut } from "@/lib/db";
+import { lireEnv } from "@/lib/env";
+import { COOKIE_SESSION_LOCALE, signerSession } from "@/lib/session-locale";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 
 export type EtatFormulaire = { erreur: string | null };
@@ -41,7 +45,26 @@ export async function validerCode2fa(_: EtatFormulaire, formData: FormData): Pro
 }
 
 export async function seDeconnecter() {
-  const supabase = await creerClientSupabase();
-  await supabase.auth.signOut();
+  if (lireEnv().AUTH_MODE === "local") {
+    (await cookies()).delete(COOKIE_SESSION_LOCALE);
+  } else {
+    const supabase = await creerClientSupabase();
+    await supabase.auth.signOut();
+  }
   redirect("/connexion");
+}
+
+/** Mode local uniquement : connexion sans mot de passe sur un compte fictif. */
+export async function connexionLocale(formData: FormData) {
+  const env = lireEnv();
+  if (env.AUTH_MODE !== "local") throw new Error("Connexion locale indisponible.");
+  const id = z.uuid().parse(formData.get("utilisateurId"));
+  const [profil] = await sqlBrut()`select id from public.profils where id = ${id} and archive_le is null`;
+  if (!profil) redirect("/connexion");
+  (await cookies()).set(COOKIE_SESSION_LOCALE, signerSession(id, env.SECRET_SESSION_LOCALE), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+  });
+  redirect("/");
 }

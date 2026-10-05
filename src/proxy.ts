@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { lireEnv } from "@/lib/env";
+import { COOKIE_SESSION_LOCALE } from "@/lib/session-locale";
 
 const ROUTES_PUBLIQUES = ["/connexion"];
 
@@ -30,24 +31,31 @@ export async function proxy(request: NextRequest) {
 
   let reponse = NextResponse.next({ request: { headers: entetes } });
 
-  // Rafraîchit la session Supabase (cookies) à chaque requête.
-  const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = lireEnv();
-  const supabase = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (aEcrire, entetesCache) => {
-        aEcrire.forEach(({ name, value }) => request.cookies.set(name, value));
-        reponse = NextResponse.next({ request: { headers: entetes } });
-        aEcrire.forEach(({ name, value, options }) => reponse.cookies.set(name, value, options));
-        Object.entries(entetesCache).forEach(([cle, valeur]) => reponse.headers.set(cle, valeur));
+  const env = lireEnv();
+  let connecte: boolean;
+  if (env.AUTH_MODE === "local") {
+    // Vérification optimiste ; la signature est contrôlée côté serveur (lib/auth).
+    connecte = request.cookies.has(COOKIE_SESSION_LOCALE);
+  } else {
+    // Rafraîchit la session Supabase (cookies) à chaque requête.
+    const supabase = createServerClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (aEcrire, entetesCache) => {
+          aEcrire.forEach(({ name, value }) => request.cookies.set(name, value));
+          reponse = NextResponse.next({ request: { headers: entetes } });
+          aEcrire.forEach(({ name, value, options }) => reponse.cookies.set(name, value, options));
+          Object.entries(entetesCache).forEach(([cle, valeur]) => reponse.headers.set(cle, valeur));
+        },
       },
-    },
-  });
-  const { data } = await supabase.auth.getClaims();
+    });
+    const { data } = await supabase.auth.getClaims();
+    connecte = Boolean(data?.claims);
+  }
 
   const chemin = request.nextUrl.pathname;
   const publique = ROUTES_PUBLIQUES.some((r) => chemin === r || chemin.startsWith(`${r}/`));
-  if (!data?.claims && !publique) {
+  if (!connecte && !publique) {
     const url = request.nextUrl.clone();
     url.pathname = "/connexion";
     url.search = "";

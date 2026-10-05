@@ -4,14 +4,27 @@ Référence fonctionnelle : [briefing-service-technique.md](briefing-service-tec
 
 ## Prérequis
 
-- Node.js 20+
-- Docker Desktop (uniquement pour lancer Supabase en local)
+Node.js 22+ uniquement. Ni Docker ni Supabase pour développer.
 
-## Tests (sans Docker)
+## Lancer en local
 
 ```bash
 npm install
-npm test          # logique métier + base Postgres embarquée (PGlite)
+cp .env.example .env.local   # puis générer SECRET_SESSION_LOCALE (commande dans le fichier)
+npm run db                   # terminal 1 : base Postgres locale (PGlite) persistée dans .data/
+npm run dev                  # terminal 2 : http://localhost:3000
+```
+
+`npm run db:reset` repart de zéro (migrations + seed fictif). Les nouvelles migrations sont appliquées
+automatiquement au démarrage de `npm run db`.
+
+Connexion : choisir un des comptes fictifs (admin, technicien, lecture). Ce mode est refusé par l'application
+sur Vercel ou avec une base distante.
+
+## Tests
+
+```bash
+npm test          # logique métier + base Postgres embarquée (PGlite, en mémoire)
 npm run typecheck
 npm run lint
 ```
@@ -20,30 +33,16 @@ Les tests de base rejouent toutes les migrations de zéro, chargent le seed fict
 droits par rôle (RLS), 2FA admin, interdiction de supprimer, archivage réservé aux admins, journal d'audit,
 contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
 
-## Lancer l'application en local
-
-```bash
-npx supabase start            # base + auth locales (Docker)
-npx supabase db reset         # migrations + seed fictif
-npx supabase status           # récupérer « API URL » et « Publishable key »
-cp .env.example .env.local    # puis y reporter ces deux valeurs
-npm run dev                   # http://localhost:3000
-```
-
-Comptes fictifs (mot de passe `Jalon-dev-2026`) : `admin@jalon.local`, `technicien@jalon.local`, `lecture@jalon.local`.
-L'admin doit configurer la double authentification à la première connexion (application TOTP) ;
-sans 2FA validée, la base ne lui accorde que la lecture.
-
-Mails de développement (Inbucket) : http://127.0.0.1:54324.
-
 ## Variables d'environnement
 
-| Variable | Rôle |
-|---|---|
-| `SUPABASE_URL` | URL de l'API Supabase |
-| `SUPABASE_PUBLISHABLE_KEY` | Clé publique Supabase (la RLS protège les données) |
+| Variable | Mode | Rôle |
+|---|---|---|
+| `AUTH_MODE` | tous | `local` (développement) ou `supabase` (production) |
+| `DATABASE_URL` | tous | Connexion Postgres (locale, ou pooler Supabase en mode transaction) |
+| `SECRET_SESSION_LOCALE` | local | Signature du cookie de session locale (≥ 32 caractères) |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | supabase | Authentification |
 
-Aucune variable `NEXT_PUBLIC_` : tout l'accès Supabase passe par le serveur. Ne jamais committer `.env.local`.
+Aucune variable `NEXT_PUBLIC_` : tout passe par le serveur. Ne jamais committer `.env.local`.
 
 ## Déploiement (après validation locale et feu vert DSI)
 
@@ -51,15 +50,17 @@ Aucune variable `NEXT_PUBLIC_` : tout l'accès Supabase passe par le serveur. Ne
 2. `npx supabase link` puis `npx supabase db push` (migrations uniquement, **pas** de seed).
 3. Créer les comptes par invitation depuis le tableau de bord, puis fixer les rôles :
    `update public.profils set role = 'admin' where id = '…';`
-4. Vercel : importer le dépôt, renseigner les variables ci-dessus. `vercel.json` force la région `cdg1` (Paris).
+4. Vercel : importer le dépôt, renseigner les variables du mode `supabase` (`DATABASE_URL` = pooler, port 6543). `vercel.json` force la région `cdg1` (Paris).
 
 ## Structure
 
 ```
 supabase/migrations/   schéma, audit, RLS, vue des échéances (SQL versionné)
-supabase/seed/         données fictives (01 = comptes locaux, 02 = données métier)
+supabase/seed/         données fictives (01 = comptes Supabase, 02 = données métier)
+dev/                   base locale PGlite (serveur, préparation, simulation de l'environnement Supabase)
 src/lib/metier/        règles métier pures et testées
-src/lib/auth.ts        session, rôles, 2FA
+src/lib/auth.ts        session (locale ou Supabase), rôles, 2FA
+src/lib/db.ts          requêtes SQL sous l'identité de l'utilisateur (RLS)
 src/proxy.ts           rafraîchissement de session, redirection, CSP à nonce
 src/app/(app)/         pages authentifiées
 tests/                 Vitest (unitaires + base PGlite)

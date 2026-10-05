@@ -3,11 +3,12 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { lireEnv } from "@/lib/env";
 
-/** Client Supabase lié à la session de l'utilisateur : la RLS s'applique. */
+/** Client Supabase Auth (mode « supabase » uniquement). Les données passent par lib/db. */
 export async function creerClientSupabase() {
+  const env = lireEnv();
+  if (env.AUTH_MODE !== "supabase") throw new Error("Supabase Auth n'est pas utilisé en mode local.");
   const magasin = await cookies();
-  const { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } = lireEnv();
-  return createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createServerClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, {
     cookies: {
       getAll: () => magasin.getAll(),
       setAll: (aEcrire) => {
