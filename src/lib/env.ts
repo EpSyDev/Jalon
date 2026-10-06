@@ -37,6 +37,12 @@ export function nettoyerVariable(nom: string, valeur: string | undefined): strin
   if (v.toUpperCase().startsWith(`${nom}=`)) v = v.slice(nom.length + 1).trim();
   const guillemet = v[0];
   if (v.length > 1 && (guillemet === '"' || guillemet === "'") && v.endsWith(guillemet)) v = v.slice(1, -1).trim();
+  if (nom === "DATABASE_URL") {
+    // Caractères parasites collés autour de l'URL : crochets, guillemets typographiques, caractères invisibles.
+    const debut = /postgres(?:ql)?:\/\//i.exec(v);
+    if (debut && debut.index > 0 && debut.index <= 3) v = v.slice(debut.index);
+    v = v.replace(/[\s"'`“”‘’>\])}​-‏⁠﻿]+$/u, "");
+  }
   return v;
 }
 

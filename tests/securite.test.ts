@@ -90,3 +90,22 @@ describe("nettoyage des variables d'environnement", () => {
     vi.unstubAllEnvs();
   });
 });
+
+describe("DATABASE_URL : caractères parasites", () => {
+  it.each([
+    "[postgresql://u:p@h:6543/db]",
+    "“postgresql://u:p@h:6543/db”",
+    "​postgresql://u:p@h:6543/db",
+    "<postgresql://u:p@h:6543/db>",
+  ])("%j", async (saisie) => {
+    const { nettoyerVariable } = await import("@/lib/env");
+    expect(nettoyerVariable("DATABASE_URL", saisie)).toBe("postgresql://u:p@h:6543/db");
+  });
+
+  it("ne touche pas à un mot de passe contenant des caractères spéciaux", async () => {
+    const { nettoyerVariable } = await import("@/lib/env");
+    expect(nettoyerVariable("DATABASE_URL", "postgresql://u:p%40ss]w>@h:6543/db")).toBe(
+      "postgresql://u:p%40ss]w>@h:6543/db",
+    );
+  });
+});
