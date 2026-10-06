@@ -53,7 +53,9 @@ function diagnostic(e: z.ZodError): Error {
       const brut = process.env[c];
       if (brut === undefined || brut === "") return `${c} : absente ou vide`;
       if (c === "DATABASE_URL") {
-        return "DATABASE_URL : doit commencer par postgres:// ou postgresql:// (collez uniquement l'URL de connexion)";
+        // Indice sûr : uniquement le début alphabétique (« https », « psql »…), jamais la suite (mot de passe).
+        const debut = /^[a-z]{1,12}/i.exec(brut.trim().replace(/^["']/, ""))?.[0] ?? "?";
+        return `DATABASE_URL : doit commencer par postgres:// ou postgresql:// (valeur reçue de ${brut.length} caractères, débutant par « ${debut} »)`;
       }
       if (c === "SUPABASE_URL") return "SUPABASE_URL : doit être une adresse https://… valide";
       return `${c} : format invalide`;
