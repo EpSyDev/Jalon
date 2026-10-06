@@ -20,7 +20,7 @@ export default async function PageMenu() {
           <Link
             key={href}
             href={href}
-            className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border text-sm"
+            className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-lg border bg-card text-sm"
           >
             <Icone className="size-6" aria-hidden />
             {libelle}

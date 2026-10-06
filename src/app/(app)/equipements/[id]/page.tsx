@@ -69,7 +69,7 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
         </div>
       )}
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border bg-card p-4 text-sm">
         <Info libelle="Famille" valeur={e.famille} />
         <Info libelle="Mise en service" valeur={e.date_mise_en_service && formaterDate(e.date_mise_en_service)} />
         <Info libelle="Marque" valeur={e.marque} />
@@ -106,7 +106,7 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
         )}
         <ul className="grid gap-2">
           {plans.map((p) => (
-            <li key={p.plan_controle_id} className="flex items-center gap-3 rounded-lg border p-3">
+            <li key={p.plan_controle_id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Link href={`/controles/plans/${p.plan_controle_id}`} className="grid min-w-0 flex-1 gap-1">
                 <span className="font-medium">{p.type_libelle}</span>
                 <span className="flex flex-wrap items-center gap-2 text-sm">

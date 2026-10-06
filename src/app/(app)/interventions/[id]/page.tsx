@@ -73,7 +73,7 @@ export default async function PageIntervention({ params }: PageProps<"/intervent
       </div>
 
       {peutEcrire && (
-        <section className="grid gap-3 rounded-lg border p-4" aria-label="Changer le statut">
+        <section className="grid gap-3 rounded-lg border bg-card p-4" aria-label="Changer le statut">
           {transitions.includes("terminee") && (
             <Formulaire action={changerStatut.bind(null, i.id)} libelle="Terminer l'intervention" className="gap-3">
               <input type="hidden" name="statut" value="terminee" />
@@ -111,7 +111,7 @@ export default async function PageIntervention({ params }: PageProps<"/intervent
         </section>
       )}
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border bg-card p-4 text-sm">
         <Info libelle="Type">{LIBELLES_TYPE_INTERVENTION[i.type]}</Info>
         <Info libelle="Demandée le">{formaterDate(i.date_demande)}</Info>
         <Info libelle="Prévue le">{formaterDate(i.date_prevue)}</Info>

@@ -26,7 +26,7 @@ export default async function PageMailsLocaux() {
       <h1 className="text-2xl font-semibold">Mails envoyés (mode local)</h1>
       {mails.length === 0 && <p className="text-muted-foreground">Aucun mail pour l&apos;instant.</p>}
       {mails.map((m) => (
-        <details key={m.id} className="rounded-lg border p-4">
+        <details key={m.id} className="rounded-lg border bg-card p-4">
           <summary className="cursor-pointer">
             <span className="font-medium">{m.sujet}</span>
             <span className="block text-sm text-muted-foreground">

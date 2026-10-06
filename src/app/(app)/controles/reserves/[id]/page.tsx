@@ -50,7 +50,7 @@ export default async function PageReserve({ params }: PageProps<"/controles/rese
         <ChampZoneTexte nom="commentaire" libelle="Commentaire" defaultValue={reserve.commentaire ?? ""} />
       </Formulaire>
       {reserve.statut === "ouverte" && (
-        <section className="grid gap-3 rounded-lg border p-4">
+        <section className="grid gap-3 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Levée à une autre date</h2>
           <Formulaire
             action={leverReserve.bind(null, reserve.id, reserve.plan_controle_id)}

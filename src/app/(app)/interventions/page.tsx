@@ -44,7 +44,7 @@ export default async function PageInterventions({ searchParams }: PageProps<"/in
         </div>
       </div>
 
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Vues">
+      <nav className="flex flex-wrap gap-2" aria-label="Vues">
         {VUES.map((v) => (
           <Link
             key={v.cle}

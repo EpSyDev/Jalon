@@ -31,7 +31,7 @@ export default async function PageSaisieControle({ searchParams }: PageProps<"/c
       <h1 className="text-2xl font-semibold">Saisir un contrôle</h1>
       <Formulaire action={enregistrerControle} libelle="Enregistrer le contrôle">
         {choisi ? (
-          <div className="grid gap-1 rounded-lg border p-4">
+          <div className="grid gap-1 rounded-lg border bg-card p-4">
             <input type="hidden" name="plan_controle_id" value={choisi.plan_controle_id} />
             <div className="flex items-start justify-between gap-2">
               <div className="font-medium">{choisi.type_libelle}</div>

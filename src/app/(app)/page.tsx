@@ -48,7 +48,7 @@ function Section({
 
 function LignePlan({ plan, detail, peutEcrire }: { plan: PlanEcheance; detail: string; peutEcrire: boolean }) {
   return (
-    <li className="flex items-center gap-3 rounded-lg border p-3">
+    <li className="flex items-center gap-3 rounded-lg border bg-card p-3">
       <Link href={`/controles/plans/${plan.plan_controle_id}`} className="grid min-w-0 flex-1 gap-0.5">
         <span className="font-medium">{plan.type_libelle}</span>
         <span className="truncate text-sm text-muted-foreground">
@@ -72,7 +72,10 @@ function LigneReserve({ reserve, aujourdhui }: { reserve: ReserveOuverte; aujour
   const depassee = reserve.echeance_levee !== null && reserve.echeance_levee < aujourdhui;
   return (
     <li>
-      <Link href={`/controles/plans/${reserve.plan_controle_id}`} className="grid gap-0.5 rounded-lg border p-3">
+      <Link
+        href={`/controles/plans/${reserve.plan_controle_id}`}
+        className="grid gap-0.5 rounded-lg border bg-card p-3"
+      >
         <span className="font-medium">{reserve.description}</span>
         <span className="text-sm text-muted-foreground">
           {reserve.type_libelle}
@@ -107,26 +110,25 @@ export default async function PageAujourdhui() {
     .map((c) => ({ contrat: c, alerte: alerteContrat(c, aujourdhui, seuilJours) }))
     .filter((x): x is { contrat: ContratSuivi; alerte: AlerteContrat } => x.alerte !== null);
 
-  const rienDUrgent =
-    enRetard.length +
-      jamais.length +
-      aEcheance.length +
-      reserves.length +
-      interventions.length +
-      contratsAlerte.length ===
-    0;
+  const aTraiter =
+    enRetard.length + jamais.length + aEcheance.length + reserves.length + interventions.length + contratsAlerte.length;
+  const rienDUrgent = aTraiter === 0;
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6 p-4 md:p-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Bonjour {utilisateur.nom}</h1>
-        <p className="text-muted-foreground first-letter:uppercase">
-          {formatInTimeZone(new Date(), FUSEAU, "EEEE d MMMM yyyy", { locale: fr })}
-        </p>
-      </div>
+      <header className="grid gap-3">
+        <p className="surtitre">{formatInTimeZone(new Date(), FUSEAU, "EEEE d MMMM yyyy", { locale: fr })}</p>
+        <h1 className="text-3xl md:text-4xl">Bonjour {utilisateur.nom.split(" ")[0]}</h1>
+        {!rienDUrgent && (
+          <p className="text-muted-foreground">
+            <span className="font-semibold text-foreground tabular-nums">{aTraiter}</span>{" "}
+            {aTraiter > 1 ? "points demandent" : "point demande"} votre attention, du plus urgent au moins urgent.
+          </p>
+        )}
+      </header>
 
       {rienDUrgent && (
-        <p className="flex items-center gap-3 rounded-lg border p-6 text-lg">
+        <p className="flex items-center gap-3 rounded-lg border bg-card p-6 text-lg">
           <CircleCheck className="size-6 text-emerald-600" aria-hidden />
           Rien à signaler aujourd&apos;hui.
         </p>
@@ -146,7 +148,7 @@ export default async function PageAujourdhui() {
       <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
         {interventions.map((i) => (
           <li key={i.id}>
-            <Link href={`/interventions/${i.id}`} className="grid gap-0.5 rounded-lg border p-3">
+            <Link href={`/interventions/${i.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
               <span className="font-medium">{i.titre}</span>
               <span className="text-sm text-muted-foreground">
                 {[
@@ -172,7 +174,7 @@ export default async function PageAujourdhui() {
       <Section titre="Contrats : décision à prendre" nombre={contratsAlerte.length} ton="ambre">
         {contratsAlerte.map(({ contrat: c, alerte }) => (
           <li key={c.id}>
-            <Link href={`/contrats/${c.id}`} className="grid gap-0.5 rounded-lg border p-3">
+            <Link href={`/contrats/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
               <span className="font-medium">{c.objet}</span>
               <span className="text-sm text-muted-foreground">{c.prestataire_nom}</span>
               <span className={cn("text-sm", alerte !== "a_decider" && "font-medium text-destructive")}>

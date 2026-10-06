@@ -23,7 +23,7 @@ export default async function PageLocalisations() {
       </div>
 
       {role !== "lecture" && (
-        <section className="grid gap-3 rounded-lg border p-4">
+        <section className="grid gap-3 rounded-lg border bg-card p-4">
           <h2 className="text-lg font-semibold">Nouvelle localisation</h2>
           <Formulaire action={creerLocalisation} libelle="Ajouter" reinitialiser>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -40,7 +40,7 @@ export default async function PageLocalisations() {
       ) : (
         <ul className="grid gap-2">
           {localisations.map((l) => (
-            <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+            <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
               <span>
                 <span className="font-medium">{l.libelle_complet}</span>
                 <span className="block text-sm text-muted-foreground">

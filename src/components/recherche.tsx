@@ -35,11 +35,11 @@ export function BoutonRecherche({ variante }: { variante: "barre" | "icone" }) {
     <button
       type="button"
       onClick={ouvrir}
-      className="flex w-full items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+      className="flex w-full items-center gap-2 rounded-md border border-sidebar-border bg-sidebar-accent/60 px-3 py-2 text-sm text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
     >
       <Search className="size-4" aria-hidden />
       Rechercher…
-      <kbd className="ml-auto rounded border px-1.5 text-xs">Ctrl K</kbd>
+      <kbd className="ml-auto rounded border border-sidebar-border px-1.5 font-mono text-[10px]">Ctrl K</kbd>
     </button>
   ) : (
     <button

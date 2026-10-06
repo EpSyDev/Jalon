@@ -65,7 +65,7 @@ export default async function PageContrat({ params }: PageProps<"/contrats/[id]"
         </LienBouton>
       )}
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border bg-card p-4 text-sm">
         <Info libelle="Début">{formaterDate(c.date_debut)}</Info>
         <Info libelle="Fin">{formaterDate(c.date_fin)}</Info>
         <Info libelle="Préavis">{c.preavis_jours !== null ? `${c.preavis_jours} jours` : "—"}</Info>

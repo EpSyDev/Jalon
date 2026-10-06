@@ -46,7 +46,7 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
         </LienBouton>
       )}
 
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Filtrer par statut">
+      <nav className="flex flex-wrap gap-2" aria-label="Filtrer par statut">
         <Link
           href="/controles"
           className={cn(

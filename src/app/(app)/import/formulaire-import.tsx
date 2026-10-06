@@ -52,7 +52,7 @@ export function FormulaireImport() {
     <div className="grid gap-6">
       <form
         ref={formulaire}
-        className="grid gap-4 rounded-lg border p-4"
+        className="grid gap-4 rounded-lg border bg-card p-4"
         onChange={() => setApercu(null)}
         onSubmit={(e) => {
           e.preventDefault();
@@ -101,7 +101,7 @@ export function FormulaireImport() {
       {apercu && (
         <section className="grid gap-4" aria-label="Aperçu de l'import">
           {apercu.importable ? (
-            <div className="grid gap-3 rounded-lg border border-emerald-600/40 p-4">
+            <div className="grid gap-3 rounded-lg border bg-card border-emerald-600/40 p-4">
               <p className="font-medium">Prêt à importer :</p>
               <ul className="list-disc pl-5 text-sm">
                 {apercu.creations.map((c) => (
@@ -131,7 +131,7 @@ export function FormulaireImport() {
             {lignes.map((l) => {
               const s = STATUTS[l.statut];
               return (
-                <li key={l.numero} className="grid gap-1 rounded-lg border p-3 text-sm">
+                <li key={l.numero} className="grid gap-1 rounded-lg border bg-card p-3 text-sm">
                   <div className="flex items-start gap-2">
                     <s.icone className={cn("mt-0.5 size-4 shrink-0", s.classe)} aria-hidden />
                     <span className="text-muted-foreground">Ligne {l.numero}</span>

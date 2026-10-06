@@ -1,17 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Archivo, Atkinson_Hyperlegible_Next, JetBrains_Mono } from "next/font/google";
 import { connection } from "next/server";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Titres : grotesque large (signalétique) · texte : conçue pour la lisibilité · codes et dates : chasse fixe.
+const titre = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-titre" });
+const texte = Atkinson_Hyperlegible_Next({ subsets: ["latin"], variable: "--font-texte" });
+const chasseFixe = JetBrains_Mono({ subsets: ["latin"], variable: "--font-chasse-fixe" });
 
 export const metadata: Metadata = {
   title: "Jalon",
@@ -24,8 +19,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#f6f4ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#14171d" },
   ],
 };
 
@@ -33,7 +28,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Rendu dynamique partout : sans cela le nonce CSP n'est pas appliqué et les scripts sont bloqués.
   await connection();
   return (
-    <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="fr" className={`${titre.variable} ${texte.variable} ${chasseFixe.variable} h-full antialiased`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

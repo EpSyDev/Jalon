@@ -36,7 +36,7 @@ export default async function PageArticle({ params }: PageProps<"/stocks/[id]">)
         {a.reference && <p className="text-muted-foreground">Réf. {a.reference}</p>}
       </div>
 
-      <div className="grid gap-1 rounded-lg border p-4">
+      <div className="grid gap-1 rounded-lg border bg-card p-4">
         <span className="text-sm text-muted-foreground">Stock disponible</span>
         <span className="text-4xl font-semibold tabular-nums">{formaterQuantite(a.stock, a.unite)}</span>
         {a.seuil_alerte && (
@@ -53,7 +53,7 @@ export default async function PageArticle({ params }: PageProps<"/stocks/[id]">)
       </div>
 
       {role !== "lecture" && (
-        <section className="grid gap-3 rounded-lg border p-4">
+        <section className="grid gap-3 rounded-lg border bg-card p-4">
           <h2 className="text-lg font-semibold">Entrée ou sortie</h2>
           <Formulaire action={enregistrerMouvement.bind(null, a.id)} libelle="Enregistrer le mouvement" reinitialiser>
             <div className="grid gap-4 sm:grid-cols-3">
@@ -98,7 +98,7 @@ export default async function PageArticle({ params }: PageProps<"/stocks/[id]">)
         {mouvements.length === 0 && <p className="text-sm text-muted-foreground">Aucun mouvement.</p>}
         <ol className="grid gap-2">
           {mouvements.map((m) => (
-            <li key={m.id} className="grid gap-1 rounded-lg border p-3 text-sm">
+            <li key={m.id} className="grid gap-1 rounded-lg border bg-card p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>{formaterDate(m.date_mouvement)}</span>
                 <span

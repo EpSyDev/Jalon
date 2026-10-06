@@ -209,6 +209,9 @@ Un second axe, indépendant : **`reserves_ouvertes`** (au moins une réserve ouv
 4. **Fiche équipement** accessible par **QR code** (page publique interdite : authentification obligatoire) : historique, contrôles liés, interventions, bouton « déclarer une intervention ».
 5. **Import Excel/CSV** (équipements, types et plans de contrôle) avec prévisualisation, détection des erreurs ligne par ligne, et aucun import silencieux.
 6. Design sobre, sombre/clair automatique, gros éléments tactiles, navigation basse sur mobile.
+   - **Identité retenue : « carnet de relevé »** — encre bleu de Prusse sur papier quadrillé, barre latérale à l'encre, orange du jalon de géomètre réservé à la marque, au repère de navigation et au focus. Rouge / violet / ambre / vert réservés aux statuts (jamais décoratifs).
+   - Polices : Archivo large (titres, signalétique), Atkinson Hyperlegible Next (texte, lisibilité debout), JetBrains Mono (surtitres, codes).
+   - Graphiques : palette validée daltonisme et contraste en clair comme en sombre, tableau de données accessible pour chaque graphique.
 
 ## 9. Plan de réalisation
 

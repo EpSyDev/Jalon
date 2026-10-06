@@ -48,7 +48,7 @@ export default async function PageChantier({ params }: PageProps<"/chantiers/[id
         </div>
       )}
 
-      <dl className="grid grid-cols-3 gap-4 rounded-lg border p-4 text-sm">
+      <dl className="grid grid-cols-3 gap-4 rounded-lg border bg-card p-4 text-sm">
         <div className="grid gap-0.5">
           <dt className="text-xs text-muted-foreground">Début</dt>
           <dd>{formaterDate(c.date_debut)}</dd>

@@ -38,7 +38,7 @@ export default async function PageParametres() {
     <div className="mx-auto grid max-w-3xl gap-8 p-4 md:p-8">
       <h1 className="text-2xl font-semibold">Paramètres</h1>
 
-      <section className="grid gap-4 rounded-lg border p-4">
+      <section className="grid gap-4 rounded-lg border bg-card p-4">
         <h2 className="text-lg font-semibold">Échéances et rappels</h2>
         {destinataires.length === 0 && (
           <p role="alert" className="rounded-md bg-amber-400/20 p-3 text-sm">
@@ -96,7 +96,7 @@ export default async function PageParametres() {
         </div>
       </section>
 
-      <section className="grid gap-3 rounded-lg border p-4">
+      <section className="grid gap-3 rounded-lg border bg-card p-4">
         <h2 className="text-lg font-semibold">Sauvegarde</h2>
         <p className="text-sm text-muted-foreground">
           Export complet (toutes les tables, journal compris) à conserver hors de l&apos;hébergement : réseau de
@@ -108,14 +108,14 @@ export default async function PageParametres() {
         </a>
       </section>
 
-      <section className="grid gap-4 rounded-lg border p-4">
+      <section className="grid gap-4 rounded-lg border bg-card p-4">
         <h2 className="text-lg font-semibold">Utilisateurs</h2>
         <p className="text-sm text-muted-foreground">
           Les comptes sont créés par invitation depuis Supabase ; un nouveau compte a le rôle « Lecture seule ».
         </p>
         <ul className="grid gap-3">
           {profils.map((p) => (
-            <li key={p.id} className="grid gap-2 rounded-lg border p-3">
+            <li key={p.id} className="grid gap-2 rounded-lg border bg-card p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <span className="font-medium">
                   {p.nom}

@@ -30,7 +30,7 @@ function Tuile({
     vert: "text-emerald-600 dark:text-emerald-400",
   };
   return (
-    <div className="grid gap-1 rounded-lg border p-4">
+    <div className="grid gap-1 rounded-lg border bg-card p-4">
       <span className={cn("flex items-center gap-1.5 text-sm", ton ? couleurs[ton] : "text-muted-foreground")}>
         {icone}
         {libelle}
@@ -145,7 +145,7 @@ export default async function PageStatistiques() {
             icone={<CircleCheck className="size-4" aria-hidden />}
           />
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border bg-card p-4">
           <Histogramme
             titre="Contrôles réalisés par mois"
             unite="contrôles"
@@ -180,7 +180,7 @@ export default async function PageStatistiques() {
 
       <section className="grid gap-4">
         <h2 className="text-lg font-semibold">Interventions</h2>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border bg-card p-4">
           <Histogramme
             titre="Interventions créées et terminées par mois"
             unite="interventions"
@@ -191,7 +191,7 @@ export default async function PageStatistiques() {
             points={pointsInterventions}
           />
         </div>
-        <div className="rounded-lg border p-4">
+        <div className="rounded-lg border bg-card p-4">
           <BarresHorizontales
             titre="Délai médian de réalisation par priorité (12 mois)"
             lignes={delais}

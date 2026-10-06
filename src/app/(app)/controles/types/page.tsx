@@ -53,7 +53,7 @@ export default async function PageTypes() {
                     {contenu}
                   </Link>
                 ) : (
-                  <div className="grid gap-1 rounded-lg border p-4">{contenu}</div>
+                  <div className="grid gap-1 rounded-lg border bg-card p-4">{contenu}</div>
                 )}
               </li>
             );
@@ -63,7 +63,7 @@ export default async function PageTypes() {
 
       {peutEcrire && (
         <>
-          <section className="grid gap-3 rounded-lg border p-4">
+          <section className="grid gap-3 rounded-lg border bg-card p-4">
             <h2 className="text-lg font-semibold">Nouveau type</h2>
             {familles.length === 0 ? (
               <p className="text-sm text-muted-foreground">Créez d&apos;abord une famille ci-dessous.</p>
@@ -74,7 +74,7 @@ export default async function PageTypes() {
             )}
           </section>
 
-          <section className="grid gap-3 rounded-lg border p-4">
+          <section className="grid gap-3 rounded-lg border bg-card p-4">
             <h2 className="text-lg font-semibold">Familles</h2>
             <p className="text-sm text-muted-foreground">
               {familles.length > 0 ? familles.map((f) => f.libelle).join(" · ") : "Aucune famille."}

@@ -61,7 +61,7 @@ export default async function PagePrestataire({ params }: PageProps<"/prestatair
         )}
       </div>
 
-      <dl className="grid gap-4 rounded-lg border p-4 text-sm sm:grid-cols-2">
+      <dl className="grid gap-4 rounded-lg border bg-card p-4 text-sm sm:grid-cols-2">
         <div className="grid gap-0.5">
           <dt className="text-xs text-muted-foreground">Téléphone</dt>
           <dd>{p.telephone ?? "—"}</dd>

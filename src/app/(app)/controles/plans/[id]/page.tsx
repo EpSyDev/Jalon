@@ -72,7 +72,7 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
         </div>
       )}
 
-      <dl className="grid grid-cols-2 gap-4 rounded-lg border p-4 text-sm">
+      <dl className="grid grid-cols-2 gap-4 rounded-lg border bg-card p-4 text-sm">
         <Info libelle="Prochaine échéance">{formaterDate(plan.prochaine_echeance)}</Info>
         <Info libelle="Dernier contrôle">{formaterDate(plan.dernier_controle)}</Info>
         <Info libelle="Périmètre">
@@ -94,7 +94,7 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
         {ouvertes.map((r) => {
           const depassee = r.echeance_levee !== null && r.echeance_levee < aujourdhui;
           return (
-            <article key={r.id} className="grid gap-3 rounded-lg border p-4">
+            <article key={r.id} className="grid gap-3 rounded-lg border bg-card p-4">
               <div className="grid gap-1">
                 <div className="font-medium">{r.description}</div>
                 <div className="text-sm text-muted-foreground">
@@ -135,7 +135,7 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
             {levees.map((r) => (
               <li
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3 text-sm"
               >
                 <span>
                   {r.description} — levée le {formaterDate(r.date_levee)}
@@ -161,7 +161,7 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
         )}
         <ol className="grid gap-2">
           {controles.map((c) => (
-            <li key={c.id} className="grid gap-1 rounded-lg border p-3 text-sm">
+            <li key={c.id} className="grid gap-1 rounded-lg border bg-card p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium">{formaterDate(c.date_realisation)}</span>
                 <span>{LIBELLES_RESULTAT[c.resultat]}</span>
