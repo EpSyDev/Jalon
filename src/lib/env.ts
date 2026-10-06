@@ -60,8 +60,11 @@ function diagnostic(e: z.ZodError): Error {
       if (brut === undefined || brut === "") return `${c} : absente ou vide`;
       if (c === "DATABASE_URL") {
         // Indice sûr : uniquement le début alphabétique (« https », « psql »…), jamais la suite (mot de passe).
-        const debut = /^[a-z]{1,12}/i.exec(brut.trim().replace(/^["']/, ""))?.[0] ?? "?";
-        return `DATABASE_URL : doit commencer par postgres:// ou postgresql:// (valeur reçue de ${brut.length} caractères, débutant par « ${debut} »)`;
+        const propre = brut.trim();
+        const debut = /^[a-z]{1,12}/i.exec(propre)?.[0];
+        const premier = `U+${(propre.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+        const position = propre.toLowerCase().indexOf("postgres");
+        return `DATABASE_URL : doit commencer par postgres:// ou postgresql:// (valeur de ${brut.length} caractères ; premier caractère ${premier}${debut ? `, début « ${debut} »` : ""} ; « postgres » ${position < 0 ? "absent" : `à la position ${position}`})`;
       }
       if (c === "SUPABASE_URL") return "SUPABASE_URL : doit être une adresse https://… valide";
       return `${c} : format invalide`;
