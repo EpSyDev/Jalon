@@ -305,3 +305,36 @@ describe("statistiques (vues SQL)", () => {
     );
   });
 });
+
+describe("stocks (base)", () => {
+  it("stock calculé, sortie au-delà du stock refusée, seuil d'alerte", async () => {
+    const r = await enTantQue(db, "technicien", async (tx) => {
+      const { rows } = await tx.query<{ id: string }>(
+        "insert into public.articles_stock (libelle, unite, seuil_alerte) values ('Tube fluo', 'u', 5) returning id",
+      );
+      const id = rows[0].id;
+      await tx.query("insert into public.mouvements_stock (article_id, sens, quantite) values ($1, 'entree', 8)", [id]);
+      await tx.query("insert into public.mouvements_stock (article_id, sens, quantite) values ($1, 'sortie', 3)", [id]);
+      const v = (
+        await tx.query<{ stock: string; sous_seuil: boolean }>(
+          "select stock, sous_seuil from public.v_stocks where id = $1",
+          [id],
+        )
+      ).rows[0];
+      let refus = "";
+      await tx.query("savepoint s");
+      try {
+        await tx.query("insert into public.mouvements_stock (article_id, sens, quantite) values ($1, 'sortie', 6)", [
+          id,
+        ]);
+      } catch (e) {
+        refus = (e as Error).message;
+        await tx.query("rollback to savepoint s");
+      }
+      return { ...v, refus };
+    });
+    expect(Number(r.stock)).toBe(5);
+    expect(r.sous_seuil).toBe(true);
+    expect(r.refus).toBe("Stock insuffisant : 5 disponible(s).");
+  });
+});

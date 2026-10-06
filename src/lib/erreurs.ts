@@ -12,6 +12,7 @@ export function messageErreurBase(e: unknown): string {
   const { code, message = "" } = (e ?? {}) as ErreurPostgres;
   const metier = MESSAGES_METIER.find((m) => message.includes(m));
   if (metier) return metier;
+  if (message.startsWith("Stock insuffisant")) return message;
   switch (code) {
     case "42501":
       return "Action non autorisée pour votre rôle.";
