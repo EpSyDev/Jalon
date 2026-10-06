@@ -3,6 +3,7 @@ import writeXlsxFile from "write-excel-file/node";
 import { genererModele, lireFichier } from "@/lib/import/fichier";
 import {
   lireDate,
+  lirePeriodicite,
   lireTableau,
   normaliser,
   planifierControles,
@@ -230,7 +231,8 @@ describe("fichiers", () => {
   it("refuse un faux xlsx, un CSV mal encodé et les autres formats", async () => {
     expect((await lireFichier("x.xlsx", Buffer.from("pas un zip"))).erreur).toMatch(/pas un classeur/);
     expect((await lireFichier("x.csv", Buffer.from([0x43, 0xe9, 0x3b]))).erreur).toMatch(/UTF-8/);
-    expect((await lireFichier("x.xls", Buffer.from("a"))).erreur).toMatch(/non pris en charge/);
+    expect((await lireFichier("x.xls", Buffer.from("a"))).erreur).toMatch(/.xls ne sont pas lus/);
+    expect((await lireFichier("x.ods", Buffer.from("a"))).erreur).toMatch(/non pris en charge/);
   });
 
   it("le modèle généré est relisible et reconnu", async () => {
@@ -244,4 +246,70 @@ describe("fichiers", () => {
 
 it("normaliser", () => {
   expect(normaliser("  Électricité / Bâtiment-B ")).toBe("electricite batiment b");
+});
+
+describe("association des colonnes", () => {
+  it("devine des en-têtes différents de ceux du modèle", () => {
+    const tableau: Cellule[][] = [
+      ["Liste des contrôles du site", null, null],
+      ["Domaine", "Vérification", "Installation", "Obligation", "Fréquence", "Entreprise"],
+      ["Électricité", "Vérification électrique", "Site", "réglementaire", "12 mois", "Élec SA"],
+    ];
+    const lu = lireTableau(tableau, "controles");
+    expect(lu.erreur).toBeUndefined();
+    expect(lu.lignes?.[0]).toMatchObject({ numero: 3, valeurs: { famille: "Électricité", periodicite: "12 mois" } });
+  });
+
+  it("choisit la ligne d'en-têtes malgré un titre au-dessus", () => {
+    const lu = lireTableau(
+      [
+        [null],
+        ["Titre du document"],
+        ["Famille", "Libellé du contrôle", "Périmètre", "Caractère", "Périodicité"],
+        ["a", "b", "c", "interne", 6],
+      ],
+      "controles",
+    );
+    expect(lu.lignes).toHaveLength(1);
+  });
+
+  it("demande une association quand une colonne obligatoire est introuvable, avec des propositions", () => {
+    const lu = lireTableau(
+      [
+        ["Machin", "Truc", "Domaine"],
+        ["a", "b", "c"],
+      ],
+      "controles",
+    );
+    expect(lu.erreur).toBeDefined();
+    expect(lu.demande?.entetes).toEqual(["Machin", "Truc", "Domaine"]);
+    expect(lu.demande?.champs.find((c) => c.cle === "famille")?.choix).toBe(2);
+    expect(lu.demande?.champs.find((c) => c.cle === "periodicite")?.choix).toBeNull();
+  });
+
+  it("applique l'association choisie par l'utilisateur", () => {
+    const tableau: Cellule[][] = [
+      ["A", "B", "C", "D", "E"],
+      ["Élec", "Vérif", "Site", "interne", 12],
+    ];
+    const lu = lireTableau(tableau, "controles", {
+      famille: 0,
+      libelle: 1,
+      perimetre: 2,
+      caractere: 3,
+      periodicite: 4,
+    });
+    expect(lu.lignes?.[0].valeurs).toMatchObject({ famille: "Élec", periodicite: 12 });
+  });
+
+  it.each([
+    ["12", 12],
+    ["12 mois", 12],
+    ["1 an", 12],
+    ["2 ans", 24],
+    ["annuel", NaN],
+    ["", NaN],
+  ])("périodicité « %s »", (saisie, attendu) => {
+    expect(lirePeriodicite(saisie === "" ? null : saisie)).toBe(attendu);
+  });
 });

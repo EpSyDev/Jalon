@@ -5,6 +5,8 @@ import { CircleAlert, CircleCheck, CircleMinus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import type { Correspondance, DemandeCorrespondance } from "@/lib/metier/import";
 import { analyserImport, importer, type Apercu } from "./actions";
 
 const TYPES = [
@@ -24,21 +26,38 @@ export function FormulaireImport() {
   const [message, setMessage] = useState<{ ton: "erreur" | "succes"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
   const [filtreErreurs, setFiltreErreurs] = useState(false);
+  // Association des colonnes : proposée par l'outil, ajustable par l'utilisateur.
+  const [demande, setDemande] = useState<DemandeCorrespondance | null>(null);
+  const [choix, setChoix] = useState<Correspondance>({});
+  const [correspondance, setCorrespondance] = useState<Correspondance | null>(null);
+  const [edition, setEdition] = useState(false);
 
-  function lancer(action: typeof analyserImport) {
+  function lancer(action: typeof analyserImport, assoc: Correspondance | null = correspondance) {
     if (!formulaire.current) return;
     const donnees = new FormData(formulaire.current);
+    if (assoc) donnees.set("correspondance", JSON.stringify(assoc));
     demarrer(async () => {
       const r = await action(donnees);
-      if ("erreur" in r) {
-        setMessage({ ton: "erreur", texte: r.erreur });
+      if (r.erreur !== undefined) {
         setApercu(null);
+        if (r.demande) {
+          setDemande(r.demande);
+          setChoix(Object.fromEntries(r.demande.champs.map((c) => [c.cle, c.choix])));
+          setEdition(true);
+          setMessage({
+            ton: "erreur",
+            texte: "Je n'ai pas reconnu toutes les colonnes obligatoires : associez-les ci-dessous.",
+          });
+        } else {
+          setMessage({ ton: "erreur", texte: r.erreur });
+        }
       } else if (r.importe) {
         setMessage({ ton: "succes", texte: r.importe });
         setApercu(null);
         formulaire.current?.reset();
       } else if (r.apercu) {
         setMessage(null);
+        setEdition(false);
         setApercu(r.apercu);
         setFiltreErreurs(!r.apercu.importable);
       }
@@ -53,7 +72,12 @@ export function FormulaireImport() {
       <form
         ref={formulaire}
         className="grid gap-4 rounded-lg border bg-card p-4"
-        onChange={() => setApercu(null)}
+        onChange={() => {
+          setApercu(null);
+          setDemande(null);
+          setCorrespondance(null);
+          setEdition(false);
+        }}
         onSubmit={(e) => {
           e.preventDefault();
           lancer(analyserImport);
@@ -98,8 +122,62 @@ export function FormulaireImport() {
         </p>
       )}
 
+      {demande && edition && (
+        <section className="grid gap-4 rounded-lg border bg-card p-4" aria-label="Association des colonnes">
+          <div className="grid gap-1">
+            <h2 className="text-lg font-semibold">Associez vos colonnes</h2>
+            <p className="text-sm text-muted-foreground">
+              Lignes d&apos;en-têtes détectée : ligne {demande.ligne} de votre fichier. Pour chaque information de
+              Jalon, choisissez la colonne qui la contient. Les champs facultatifs peuvent rester vides.
+            </p>
+          </div>
+          <ul className="grid gap-3">
+            {demande.champs.map((c) => (
+              <li key={c.cle} className="grid gap-1.5">
+                <label htmlFor={`col-${c.cle}`} className="text-sm font-medium">
+                  {c.entete}
+                  {c.obligatoire && <span className="text-destructive"> *</span>}
+                </label>
+                <NativeSelect
+                  id={`col-${c.cle}`}
+                  className="w-full [&_select]:h-11"
+                  value={choix[c.cle] ?? ""}
+                  onChange={(e) =>
+                    setChoix({ ...choix, [c.cle]: e.target.value === "" ? null : Number(e.target.value) })
+                  }
+                >
+                  <NativeSelectOption value="">{c.obligatoire ? "— choisir —" : "— non utilisée —"}</NativeSelectOption>
+                  {demande.entetes.map((entete, i) => (
+                    <NativeSelectOption key={i} value={i}>
+                      {`Colonne ${i + 1}${entete ? ` — ${entete}` : " (sans titre)"}`}
+                    </NativeSelectOption>
+                  ))}
+                </NativeSelect>
+                <span className="text-xs text-muted-foreground">{c.aide}</span>
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            disabled={enCours}
+            className="h-12 text-base"
+            onClick={() => {
+              setCorrespondance(choix);
+              lancer(analyserImport, choix);
+            }}
+          >
+            {enCours ? "Analyse…" : "Valider l'association et analyser"}
+          </Button>
+        </section>
+      )}
+
       {apercu && (
         <section className="grid gap-4" aria-label="Aperçu de l'import">
+          {demande && !edition && (
+            <button type="button" className="w-fit text-sm underline" onClick={() => setEdition(true)}>
+              Ajuster l&apos;association des colonnes
+            </button>
+          )}
           {apercu.importable ? (
             <div className="grid gap-3 rounded-lg border bg-card border-emerald-600/40 p-4">
               <p className="font-medium">Prêt à importer :</p>

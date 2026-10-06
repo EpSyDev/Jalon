@@ -136,26 +136,133 @@ const STATUTS = {
 
 export type LigneBrute = { numero: number; valeurs: Record<string, Cellule> };
 
+/**
+ * Périodicité en mois : « 12 », « 12 mois », « 1 an », « 2 ans ». Tout autre libellé (« annuel »…) est refusé :
+ * on ne devine jamais une périodicité réglementaire.
+ */
+export function lirePeriodicite(brut: string | null): number {
+  if (brut === null) return NaN;
+  const m = /^(\d+)\s*(mois|m|ans?|a)?$/i.exec(brut.trim());
+  if (!m) return NaN;
+  const n = Number(m[1]);
+  return m[2] && /^a/i.test(m[2]) ? n * 12 : n;
+}
+
+/** Association champ Jalon → numéro de colonne du fichier (null = non utilisé). */
+export type Correspondance = Record<string, number | null>;
+
+export type DemandeCorrespondance = {
+  /** Numéro (1-based) de la ligne d'en-têtes retenue dans le fichier. */
+  ligne: number;
+  entetes: string[];
+  champs: { cle: string; entete: string; obligatoire: boolean; aide: string; choix: number | null }[];
+};
+
+/** Mots-clés de secours : un en-tête qui contient l'un d'eux est une candidate pour le champ. */
+const MOTS_CLES: Record<string, string[]> = {
+  famille: ["famille", "domaine", "categorie", "rubrique", "theme", "thematique"],
+  libelle: ["controle", "verification", "libelle", "designation", "intitule", "nature", "operation", "prestation"],
+  perimetre: ["perimetre", "equipement", "installation", "lieu", "batiment", "zone", "local", "site"],
+  caractere: ["caractere", "obligation", "statut reglementaire", "reglementaire"],
+  periodicite: ["periodicite", "frequence", "periode", "delai", "intervalle", "cycle"],
+  reference: ["reference", "texte", "article", "arrete", "norme", "decret", "code"],
+  prestataire: ["prestataire", "fournisseur", "organisme", "societe", "entreprise", "intervenant", "sous traitant"],
+  dernier_controle: ["dernier", "derniere", "realise", "realisation", "date controle", "date"],
+  resultat: ["resultat", "conclusion", "avis", "etat"],
+  code: ["code", "numero", "identifiant", "ref", "id"],
+  batiment: ["batiment", "site", "immeuble"],
+  niveau: ["niveau", "etage"],
+  local: ["local", "piece", "salle"],
+  marque: ["marque", "fabricant", "constructeur"],
+  modele: ["modele", "type"],
+  numero_serie: ["serie"],
+  mise_en_service: ["mise en service", "installation", "date"],
+  statut: ["statut", "etat"],
+};
+
+/** Meilleure proposition pour chaque champ : en-tête identique > contenant un mot-clé ; chaque colonne sert une fois. */
+function proposer(entetes: string[], type: TypeImport): Correspondance {
+  const colonnes = COLONNES[type];
+  const norm = entetes.map(normaliser);
+  const candidats: { cle: string; i: number; score: number }[] = [];
+  for (const col of colonnes) {
+    const noms = [col.entete, ...(col.alias ?? [])].map(normaliser);
+    norm.forEach((e, i) => {
+      if (e === "") return;
+      if (noms.includes(e)) candidats.push({ cle: col.cle, i, score: 100 });
+      else {
+        const mots = MOTS_CLES[col.cle] ?? [];
+        const idx = mots.findIndex((m) => e.includes(m));
+        if (idx !== -1) candidats.push({ cle: col.cle, i, score: 50 - idx });
+      }
+    });
+  }
+  candidats.sort((a, b) => b.score - a.score);
+  const resultat: Correspondance = Object.fromEntries(colonnes.map((c) => [c.cle, null]));
+  const prises = new Set<number>();
+  for (const c of candidats) {
+    if (resultat[c.cle] !== null || prises.has(c.i)) continue;
+    resultat[c.cle] = c.i;
+    prises.add(c.i);
+  }
+  return resultat;
+}
+
+/** Ligne d'en-têtes : parmi les 10 premières lignes non vides, celle qui reconnaît le plus de colonnes. */
+function trouverEntete(tableau: Cellule[][], type: TypeImport): number {
+  const vide = (ligne: Cellule[]) => ligne.every((c) => texte(c) === null);
+  const candidates = tableau
+    .map((l, i) => ({ l, i }))
+    .filter(({ l }) => !vide(l))
+    .slice(0, 10);
+  // 1) Correspondances exactes avec nos intitulés (le modèle) : la ligne qui en reconnaît le plus.
+  const noms = new Set(COLONNES[type].flatMap((c) => [c.entete, ...(c.alias ?? [])].map(normaliser)));
+  const exact = (l: Cellule[]) => l.filter((c) => noms.has(normaliser(texte(c) ?? ""))).length;
+  let meilleure = { i: -1, n: 0 };
+  for (const { l, i } of candidates) {
+    const n = exact(l);
+    if (n > meilleure.n) meilleure = { i, n };
+  }
+  if (meilleure.i !== -1) return meilleure.i;
+  // 2) Sinon : première ligne d'au moins deux cellules remplies (écarte un simple titre de document).
+  const remplie = candidates.find(({ l }) => l.filter((c) => texte(c) !== null).length >= 2);
+  return remplie ? remplie.i : (candidates[0]?.i ?? -1);
+}
+
 export function lireTableau(
   tableau: Cellule[][],
   type: TypeImport,
-): { erreur: string; lignes?: never } | { erreur?: never; lignes: LigneBrute[] } {
+  correspondance?: Correspondance,
+):
+  | { erreur: string; lignes?: never; demande?: DemandeCorrespondance }
+  | { erreur?: never; lignes: LigneBrute[]; demande?: never } {
   const vide = (ligne: Cellule[]) => ligne.every((c) => texte(c) === null);
-  const indexEntete = tableau.findIndex((l) => !vide(l));
+  const indexEntete = trouverEntete(tableau, type);
   if (indexEntete === -1) return { erreur: "Le fichier est vide." };
 
   const colonnes = COLONNES[type];
-  const entete = tableau[indexEntete].map((c) => normaliser(texte(c) ?? ""));
+  const entetes = tableau[indexEntete].map((c) => texte(c) ?? "");
+  const choix = correspondance ?? proposer(entetes, type);
   const position = new Map<string, number>();
-  for (const col of colonnes) {
-    const noms = [col.entete, ...(col.alias ?? [])].map(normaliser);
-    const i = entete.findIndex((e) => noms.includes(e));
-    if (i !== -1) position.set(col.cle, i);
+  for (const [cle, i] of Object.entries(choix)) {
+    if (i !== null && i >= 0 && i < entetes.length) position.set(cle, i);
   }
-  const manquantes = colonnes.filter((c) => c.obligatoire && !position.has(c.cle)).map((c) => `« ${c.entete} »`);
+
+  const manquantes = colonnes.filter((c) => c.obligatoire && !position.has(c.cle));
   if (manquantes.length > 0) {
     return {
-      erreur: `Colonne(s) obligatoire(s) introuvable(s) en ligne ${indexEntete + 1} : ${manquantes.join(", ")}.`,
+      erreur: `Colonne(s) à associer : ${manquantes.map((c) => `« ${c.entete} »`).join(", ")}.`,
+      demande: {
+        ligne: indexEntete + 1,
+        entetes,
+        champs: colonnes.map((c) => ({
+          cle: c.cle,
+          entete: c.entete,
+          obligatoire: Boolean(c.obligatoire),
+          aide: c.aide,
+          choix: choix[c.cle] ?? null,
+        })),
+      },
     };
   }
 
@@ -267,7 +374,7 @@ export function planifierControles(lignes: LigneBrute[], existant: Existant): Pl
     const prestataire = texte(v.prestataire);
     const caractere = lireEnum(v.caractere, CARACTERES);
     const periodiciteBrute = texte(v.periodicite);
-    const periodicite = periodiciteBrute !== null && /^\d+$/.test(periodiciteBrute) ? Number(periodiciteBrute) : NaN;
+    const periodicite = lirePeriodicite(periodiciteBrute);
     const dernier = lireDate(v.dernier_controle);
     const resultat = lireEnum(v.resultat, RESULTATS);
 

@@ -5,8 +5,11 @@ import { unstable_rethrow } from "next/navigation";
 import { requete } from "@/lib/auth";
 import { messageErreurBase } from "@/lib/erreurs";
 import { lireFichier, TAILLE_MAX } from "@/lib/import/fichier";
+import { z } from "zod";
 import {
   lireTableau,
+  type Correspondance,
+  type DemandeCorrespondance,
   planifierControles,
   planifierEquipements,
   type LigneApercu,
@@ -21,7 +24,22 @@ export type Apercu = {
 };
 
 export type ReponseImport =
-  { erreur: string } | { apercu: Apercu; importe?: never } | { importe: string; apercu?: never };
+  | { erreur: string; demande?: DemandeCorrespondance }
+  | { apercu: Apercu; importe?: never; erreur?: never }
+  | { importe: string; apercu?: never; erreur?: never };
+
+const schemaCorrespondance = z.record(z.string().max(40), z.number().int().min(0).max(500).nullable());
+
+/** Correspondance choisie par l'utilisateur (JSON validé), ou undefined pour la détection automatique. */
+function lireCorrespondance(brut: FormDataEntryValue | null): Correspondance | undefined | "invalide" {
+  if (typeof brut !== "string" || brut === "") return undefined;
+  try {
+    const r = schemaCorrespondance.safeParse(JSON.parse(brut));
+    return r.success ? r.data : "invalide";
+  } catch {
+    return "invalide";
+  }
+}
 
 const ECRITURE = ["admin", "technicien"] as const;
 
@@ -33,8 +51,10 @@ async function preparer(formData: FormData) {
   if (fichier.size > TAILLE_MAX) return { erreur: "Fichier trop volumineux (5 Mo maximum)." };
   const { tableau, erreur } = await lireFichier(fichier.name, Buffer.from(await fichier.arrayBuffer()));
   if (erreur || !tableau) return { erreur: erreur ?? "Fichier illisible." };
-  const lu = lireTableau(tableau, type as TypeImport);
-  if (lu.erreur) return { erreur: lu.erreur };
+  const correspondance = lireCorrespondance(formData.get("correspondance"));
+  if (correspondance === "invalide") return { erreur: "Correspondance de colonnes invalide." };
+  const lu = lireTableau(tableau, type as TypeImport, correspondance);
+  if (lu.erreur) return { erreur: lu.erreur, demande: lu.demande };
   return { type: type as TypeImport, lignes: lu.lignes };
 }
 
@@ -65,7 +85,7 @@ function resumeCreations(ops: Operations): string[] {
 
 export async function analyserImport(formData: FormData): Promise<ReponseImport> {
   const prepare = await preparer(formData);
-  if ("erreur" in prepare) return { erreur: prepare.erreur! };
+  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande };
   try {
     return await requete(
       async (tx) => {
@@ -93,7 +113,7 @@ export async function analyserImport(formData: FormData): Promise<ReponseImport>
 /** Réanalyse le fichier puis importe tout, dans une seule transaction (tout ou rien). */
 export async function importer(formData: FormData): Promise<ReponseImport> {
   const prepare = await preparer(formData);
-  if ("erreur" in prepare) return { erreur: prepare.erreur! };
+  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande };
   try {
     const bilan = await requete(
       async (tx) => {

@@ -35,6 +35,12 @@ export async function lireFichier(nom: string, contenu: Buffer): Promise<{ table
     return { tableau: resultat.data };
   }
 
+  if (extension === "xls") {
+    return {
+      erreur:
+        "Les anciens classeurs .xls ne sont pas lus. Dans Excel : Fichier → Enregistrer sous → « Classeur Excel (.xlsx) » (ou « CSV UTF-8 »), puis réimportez.",
+    };
+  }
   return { erreur: "Format non pris en charge : utilisez .xlsx ou .csv." };
 }
 
