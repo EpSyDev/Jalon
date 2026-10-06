@@ -109,3 +109,21 @@ describe("DATABASE_URL : caractères parasites", () => {
     );
   });
 });
+
+describe("DATABASE_URL sans schéma", () => {
+  it.each([
+    "/postgres.abcd:pw@aws-0-eu-west-3.pooler.supabase.com:6543/postgres",
+    "postgres.abcd:pw@aws-0-eu-west-3.pooler.supabase.com:6543/postgres",
+  ])("%s", async (saisie) => {
+    const { nettoyerVariable } = await import("@/lib/env");
+    expect(nettoyerVariable("DATABASE_URL", saisie)).toBe(
+      "postgresql://postgres.abcd:pw@aws-0-eu-west-3.pooler.supabase.com:6543/postgres",
+    );
+  });
+
+  it("laisse intacte une URL déjà complète", async () => {
+    const { nettoyerVariable } = await import("@/lib/env");
+    const url = "postgresql://postgres.abcd:pw@aws-0-eu-west-3.pooler.supabase.com:6543/postgres";
+    expect(nettoyerVariable("DATABASE_URL", url)).toBe(url);
+  });
+});

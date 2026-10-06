@@ -42,6 +42,10 @@ export function nettoyerVariable(nom: string, valeur: string | undefined): strin
     const debut = /postgres(?:ql)?:\/\//i.exec(v);
     if (debut && debut.index > 0 && debut.index <= 3) v = v.slice(debut.index);
     v = v.replace(/[\s"'`“”‘’>\])}​-‏⁠﻿]+$/u, "");
+    // Schéma oublié : « /postgres.<ref>:mot-de-passe@hôte:6543/postgres » → on rétablit « postgresql:// ».
+    if (!v.includes("://") && /^\/{0,2}postgres(\.[a-z0-9]+)?:[^@\s]+@[^\s/]+/i.test(v)) {
+      v = `postgresql://${v.replace(/^\/+/, "")}`;
+    }
   }
   return v;
 }
