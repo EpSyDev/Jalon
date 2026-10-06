@@ -25,8 +25,22 @@ export async function seConnecter(_: EtatFormulaire, formData: FormData): Promis
     email: saisie.data.email,
     password: saisie.data.motDePasse,
   });
-  // Message volontairement générique : ne pas révéler si le compte existe.
-  if (error) return { erreur: "Identifiants incorrects ou trop de tentatives. Réessayez." };
+  if (error) {
+    // Journal serveur : code technique seulement (jamais l'adresse ni le mot de passe).
+    console.error(`Connexion refusée : statut=${error.status ?? "?"} code=${error.code ?? "?"} nom=${error.name}`);
+    // Cas qui ne révèlent rien sur l'existence d'un compte (le mot de passe était correct, ou c'est un incident technique).
+    if (error.code === "email_not_confirmed") {
+      return { erreur: "Compte non confirmé : demandez à un administrateur de le confirmer dans Supabase." };
+    }
+    if (error.code === "over_request_rate_limit" || error.status === 429) {
+      return { erreur: "Trop de tentatives. Patientez quelques minutes avant de réessayer." };
+    }
+    if (!error.status || error.status >= 500 || error.code === "invalid_api_key" || error.status === 401) {
+      return { erreur: "Service d'authentification indisponible ou mal configuré. Contactez l'administrateur." };
+    }
+    // Message volontairement générique pour le reste : ne pas révéler si le compte existe.
+    return { erreur: "Identifiants incorrects ou trop de tentatives. Réessayez." };
+  }
   redirect(cheminSur(formData.get("suite")));
 }
 
