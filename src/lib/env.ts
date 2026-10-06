@@ -27,16 +27,54 @@ function estBaseLocale(url: string): boolean {
 
 export type Env = z.infer<typeof schema>;
 
+/**
+ * Variable d'environnement nettoyée des erreurs de copier-coller courantes : espaces, retours à la ligne,
+ * guillemets, préfixe « NOM= ». Ne modifie jamais le contenu utile.
+ */
+export function nettoyerVariable(nom: string, valeur: string | undefined): string | undefined {
+  if (valeur === undefined) return undefined;
+  let v = valeur.trim();
+  if (v.toUpperCase().startsWith(`${nom}=`)) v = v.slice(nom.length + 1).trim();
+  const guillemet = v[0];
+  if (v.length > 1 && (guillemet === '"' || guillemet === "'") && v.endsWith(guillemet)) v = v.slice(1, -1).trim();
+  return v;
+}
+
+const lire = (nom: string) => nettoyerVariable(nom, process.env[nom]);
+
+/** Diagnostic lisible, sans jamais afficher la valeur (elle peut contenir un mot de passe). */
+function diagnostic(e: z.ZodError): Error {
+  // Règles globales (sans champ) : leur message est écrit par nous, donc sûr à afficher.
+  const regles = e.issues.filter((i) => i.path.length === 0).map((i) => i.message);
+  if (regles.length) return new Error(regles.join(" "));
+  const champs = [...new Set(e.issues.map((i) => String(i.path[0] ?? "")))].filter(Boolean);
+  const detail = champs
+    .map((c) => {
+      const brut = process.env[c];
+      if (brut === undefined || brut === "") return `${c} : absente ou vide`;
+      if (c === "DATABASE_URL") {
+        return "DATABASE_URL : doit commencer par postgres:// ou postgresql:// (collez uniquement l'URL de connexion)";
+      }
+      if (c === "SUPABASE_URL") return "SUPABASE_URL : doit être une adresse https://… valide";
+      return `${c} : format invalide`;
+    })
+    .join(" ; ");
+  return new Error(`Configuration invalide — ${detail || "variables d'environnement"}.`);
+}
+
 let cache: Env | undefined;
 
 export function lireEnv(): Env {
-  cache ??= schema.parse({
-    AUTH_MODE: process.env.AUTH_MODE ?? "supabase",
-    DATABASE_URL: process.env.DATABASE_URL,
-    SUPABASE_URL: process.env.SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY: process.env.SUPABASE_PUBLISHABLE_KEY,
-    SECRET_SESSION_LOCALE: process.env.SECRET_SESSION_LOCALE,
+  if (cache) return cache;
+  const saisie = schema.safeParse({
+    AUTH_MODE: lire("AUTH_MODE") ?? "supabase",
+    DATABASE_URL: lire("DATABASE_URL"),
+    SUPABASE_URL: lire("SUPABASE_URL"),
+    SUPABASE_PUBLISHABLE_KEY: lire("SUPABASE_PUBLISHABLE_KEY"),
+    SECRET_SESSION_LOCALE: lire("SECRET_SESSION_LOCALE"),
   });
+  if (!saisie.success) throw diagnostic(saisie.error);
+  cache = saisie.data;
   return cache;
 }
 
@@ -60,11 +98,16 @@ const schemaRappels = z
 export type EnvRappels = z.infer<typeof schemaRappels>;
 
 export function lireEnvRappels(): EnvRappels {
-  return schemaRappels.parse({
-    CRON_SECRET: process.env.CRON_SECRET,
-    APP_URL: process.env.APP_URL,
-    MAIL_MODE: process.env.MAIL_MODE ?? "local",
-    RESEND_API_KEY: process.env.RESEND_API_KEY || undefined,
-    MAIL_EXPEDITEUR: process.env.MAIL_EXPEDITEUR || undefined,
+  const saisie = schemaRappels.safeParse({
+    CRON_SECRET: lire("CRON_SECRET"),
+    APP_URL: lire("APP_URL")?.replace(/\/+$/, ""),
+    MAIL_MODE: lire("MAIL_MODE") ?? "local",
+    RESEND_API_KEY: lire("RESEND_API_KEY") || undefined,
+    MAIL_EXPEDITEUR: lire("MAIL_EXPEDITEUR") || undefined,
   });
+  if (!saisie.success) {
+    const champs = [...new Set(saisie.error.issues.map((i) => String(i.path[0] || "MAIL_MODE")))].join(", ");
+    throw new Error(`Configuration des rappels invalide — vérifiez : ${champs}.`);
+  }
+  return saisie.data;
 }

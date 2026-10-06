@@ -61,3 +61,32 @@ describe("mode d'authentification local", () => {
     expect(() => lireEnv()).toThrow();
   });
 });
+
+describe("nettoyage des variables d'environnement", () => {
+  it.each([
+    ["DATABASE_URL", "  postgres://u:p@h:6543/db \n", "postgres://u:p@h:6543/db"],
+    ["DATABASE_URL", '"postgres://u:p@h:6543/db"', "postgres://u:p@h:6543/db"],
+    ["DATABASE_URL", "DATABASE_URL=postgres://u:p@h:6543/db", "postgres://u:p@h:6543/db"],
+    ["APP_URL", "'https://x.vercel.app'", "https://x.vercel.app"],
+    ["CRON_SECRET", "abc", "abc"],
+  ])("%s : %j", async (nom, saisie, attendu) => {
+    const { nettoyerVariable } = await import("@/lib/env");
+    expect(nettoyerVariable(nom, saisie)).toBe(attendu);
+  });
+
+  it("l'erreur de configuration ne révèle jamais la valeur saisie", async () => {
+    vi.resetModules();
+    vi.stubEnv("AUTH_MODE", "supabase");
+    vi.stubEnv("DATABASE_URL", "mot-de-passe-secret-123");
+    vi.stubEnv("SUPABASE_URL", "https://x.supabase.co");
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "x".repeat(30));
+    const { lireEnv } = await import("@/lib/env");
+    expect(() => lireEnv()).toThrow(/DATABASE_URL : doit commencer par postgres/);
+    try {
+      lireEnv();
+    } catch (e) {
+      expect((e as Error).message).not.toContain("mot-de-passe-secret");
+    }
+    vi.unstubAllEnvs();
+  });
+});
