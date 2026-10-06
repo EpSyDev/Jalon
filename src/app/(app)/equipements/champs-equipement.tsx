@@ -10,9 +10,29 @@ export const LIBELLES_STATUT_EQUIPEMENT = {
   reforme: "Réformé",
 } as const;
 
-export function ChampsEquipement({ options, equipement }: { options: Options; equipement?: EquipementDetail }) {
+export function ChampsEquipement({
+  options,
+  equipement,
+  universParDefaut,
+}: {
+  options: Options;
+  equipement?: EquipementDetail;
+  universParDefaut?: string;
+}) {
   return (
     <>
+      <ChampListe
+        nom="univers_id"
+        libelle="Univers"
+        defaultValue={equipement?.univers_id ?? universParDefaut ?? ""}
+        vide="Aucun univers"
+        options={options.univers.map((u) => ({ valeur: u.id, libelle: u.libelle }))}
+        aide={
+          options.univers.length === 0
+            ? "Aucun univers : créez-en dans Parc → Univers pour regrouper vos matériels."
+            : "Domaine auquel appartient ce matériel."
+        }
+      />
       <ChampTexte
         nom="code"
         libelle="Code"

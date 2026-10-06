@@ -338,3 +338,45 @@ describe("stocks (base)", () => {
     expect(r.refus).toBe("Stock insuffisant : 5 disponible(s).");
   });
 });
+
+describe("univers du parc", () => {
+  it("un technicien crée un univers et y rattache un équipement ; doublon (accents/casse) refusé", async () => {
+    const r = await enTantQue(db, "technicien", async (tx) => {
+      const { rows } = await tx.query<{ id: string }>(
+        "insert into public.univers (libelle) values ('Chauffage-ventilation') returning id",
+      );
+      await tx.query("insert into public.equipements (code, libelle, univers_id) values ('CTA-9', 'Centrale', $1)", [
+        rows[0].id,
+      ]);
+      await tx.query("savepoint s");
+      let doublon = "";
+      try {
+        await tx.query("insert into public.univers (libelle) values ('CHAUFFAGE-VENTILATION')");
+      } catch (e) {
+        doublon = (e as Error).message;
+        await tx.query("rollback to savepoint s");
+      }
+      const n = (
+        await tx.query<{ n: number }>("select count(*)::int as n from public.equipements where univers_id = $1", [
+          rows[0].id,
+        ])
+      ).rows[0].n;
+      return { doublon, n };
+    });
+    expect(r.n).toBe(1);
+    expect(r.doublon).toMatch(/duplicate key/);
+  });
+
+  it("lecture seule : lit mais ne crée pas ; personne ne supprime ; seul l'admin archive", async () => {
+    await expect(
+      enTantQue(db, "lecture", (tx) => tx.query("insert into public.univers (libelle) values ('X')")),
+    ).rejects.toThrow(/row-level security/);
+    await expect(enTantQue(db, "admin", (tx) => tx.query("delete from public.univers"))).rejects.toThrow(
+      /permission denied/,
+    );
+    await db.query("insert into public.univers (libelle) values ('Biomédical')");
+    await expect(
+      enTantQue(db, "technicien", (tx) => tx.query("update public.univers set archive_le = now()")),
+    ).rejects.toThrow(/administrateur/);
+  });
+});

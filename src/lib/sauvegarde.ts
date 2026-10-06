@@ -15,6 +15,7 @@ export const TABLES = [
   "localisations",
   "prestataires",
   "familles_controle",
+  "univers",
   "equipements",
   "contrats",
   "types_controle",

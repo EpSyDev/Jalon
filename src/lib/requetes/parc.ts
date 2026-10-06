@@ -11,6 +11,7 @@ export type EquipementListe = {
   libelle: string;
   statut: StatutEquipement;
   famille: string | null;
+  univers: string | null;
   localisation: string | null;
   statuts_plans: StatutEcheance[];
   synthese: StatutEcheance | null;
@@ -18,22 +19,26 @@ export type EquipementListe = {
 
 export async function listerEquipements(
   tx: Tx,
-  filtres: { q?: string; statut?: string; famille?: string },
+  filtres: { q?: string; statut?: string; famille?: string; univers?: string },
 ): Promise<EquipementListe[]> {
   const q = filtres.q?.trim() ? `%${filtres.q.trim()}%` : null;
   const lignes = await tx<Omit<EquipementListe, "synthese">[]>`
-    select e.id, e.code, e.libelle, e.statut, f.libelle as famille, l.libelle_complet as localisation,
+    select e.id, e.code, e.libelle, e.statut, f.libelle as famille, u.libelle as univers, l.libelle_complet as localisation,
       coalesce(array_agg(v.statut_echeance) filter (where v.statut_echeance is not null), '{}') as statuts_plans
     from public.equipements e
     left join public.familles_controle f on f.id = e.famille_id
+    left join public.univers u on u.id = e.univers_id
     left join public.localisations l on l.id = e.localisation_id
     left join public.v_plans_controle_echeance v on v.equipement_id = e.id
     where e.archive_le is null
       and (${filtres.statut ?? null}::text is null or e.statut = ${filtres.statut ?? null})
       and (${filtres.famille ?? null}::uuid is null or e.famille_id = ${filtres.famille ?? null})
+      and (${filtres.univers === "aucun" ? "aucun" : null}::text is null or e.univers_id is null)
+      and (${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null}::uuid is null
+        or e.univers_id = ${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null})
       and (${q}::text is null or public.normaliser(e.code || ' ' || e.libelle || ' ' || coalesce(l.libelle_complet, ''))
         like public.normaliser(${q}))
-    group by e.id, f.libelle, l.libelle_complet
+    group by e.id, f.libelle, u.libelle, l.libelle_complet
     order by e.code`;
   return lignes.map((e) => ({ ...e, synthese: statutLePlusUrgent(e.statuts_plans) }));
 }
@@ -42,6 +47,8 @@ export type EquipementDetail = {
   id: string;
   code: string;
   libelle: string;
+  univers_id: string | null;
+  univers: string | null;
   famille_id: string | null;
   famille: string | null;
   localisation_id: string | null;
@@ -57,11 +64,12 @@ export type EquipementDetail = {
 
 export async function lireEquipement(tx: Tx, id: string): Promise<EquipementDetail | undefined> {
   const [e] = await tx<EquipementDetail[]>`
-    select e.id, e.code, e.libelle, e.famille_id, f.libelle as famille, e.localisation_id,
+    select e.id, e.code, e.libelle, e.univers_id, u.libelle as univers, e.famille_id, f.libelle as famille, e.localisation_id,
       l.libelle_complet as localisation, e.marque, e.modele, e.numero_serie, e.date_mise_en_service, e.statut,
       e.qr_token, e.notes
     from public.equipements e
     left join public.familles_controle f on f.id = e.famille_id
+    left join public.univers u on u.id = e.univers_id
     left join public.localisations l on l.id = e.localisation_id
     where e.id = ${id} and e.archive_le is null`;
   return e;
@@ -120,14 +128,25 @@ export function listerLocalisations(tx: Tx) {
     order by l.batiment, l.niveau nulls first, l.local nulls first`;
 }
 
+export type UniversListe = { id: string; libelle: string; description: string | null; nb_equipements: number };
+
+export function listerUnivers(tx: Tx) {
+  return tx<UniversListe[]>`
+    select u.id, u.libelle, u.description,
+      (select count(*)::int from public.equipements e where e.univers_id = u.id and e.archive_le is null) as nb_equipements
+    from public.univers u where u.archive_le is null order by u.libelle`;
+}
+
 export async function optionsEquipement(tx: Tx) {
-  const [familles, localisations] = await Promise.all([
+  const [univers, familles, localisations] = await Promise.all([
+    tx<{ id: string; libelle: string }[]>`
+      select id, libelle from public.univers where archive_le is null order by libelle`,
     tx<{ id: string; libelle: string }[]>`
       select id, libelle from public.familles_controle where archive_le is null order by libelle`,
     tx<{ id: string; libelle: string }[]>`
       select id, libelle_complet as libelle from public.localisations where archive_le is null order by 2`,
   ]);
-  return { familles, localisations };
+  return { univers, familles, localisations };
 }
 
 /** Équipements à étiqueter (QR), filtrés par identifiants ou tous les actifs. */

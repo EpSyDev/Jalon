@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, MapPin, Plus, QrCode } from "lucide-react";
+import { ChevronRight, Layers, MapPin, Plus, QrCode } from "lucide-react";
 import { BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { requete } from "@/lib/auth";
-import { listerEquipements, optionsEquipement } from "@/lib/requetes/parc";
+import { listerEquipements, listerUnivers, optionsEquipement } from "@/lib/requetes/parc";
+import { cn } from "@/lib/utils";
 import { LIBELLES_STATUT_EQUIPEMENT } from "./champs-equipement";
 
 export const metadata = { title: "Parc matériel — Jalon" };
@@ -17,15 +18,18 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
   const texte = (v: unknown) => (typeof v === "string" && v.length <= 100 ? v : undefined);
   const statut = texte(params.statut);
   const famille = texte(params.famille);
+  const univers = texte(params.univers);
   const filtres = {
     q: texte(params.q),
     statut: statut && statut in LIBELLES_STATUT_EQUIPEMENT ? statut : undefined,
     famille: famille && /^[0-9a-f-]{36}$/.test(famille) ? famille : undefined,
+    univers: univers === "aucun" || (univers && /^[0-9a-f-]{36}$/.test(univers)) ? univers : undefined,
   };
 
-  const { equipements, familles, peutEcrire } = await requete(async (tx, u) => ({
+  const { equipements, familles, listeUnivers, peutEcrire } = await requete(async (tx, u) => ({
     equipements: await listerEquipements(tx, filtres),
     familles: (await optionsEquipement(tx)).familles,
+    listeUnivers: await listerUnivers(tx),
     peutEcrire: u.role !== "lecture",
   }));
 
@@ -34,6 +38,10 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Parc matériel</h1>
         <div className="flex flex-wrap gap-2">
+          <LienBouton href="/equipements/univers" variante="outline">
+            <Layers className="size-4" aria-hidden />
+            Univers
+          </LienBouton>
           <LienBouton href="/equipements/localisations" variante="outline">
             <MapPin className="size-4" aria-hidden />
             Localisations
@@ -51,7 +59,32 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
         </div>
       </div>
 
+      {listeUnivers.length > 0 && (
+        <nav className="flex flex-wrap gap-2" aria-label="Univers">
+          {[
+            { cle: undefined, libelle: "Tous les univers" },
+            ...listeUnivers.map((u) => ({
+              cle: u.id as string | undefined,
+              libelle: `${u.libelle} (${u.nb_equipements})`,
+            })),
+            { cle: "aucun", libelle: "Sans univers" },
+          ].map((u) => (
+            <Link
+              key={u.cle ?? "tous"}
+              href={u.cle ? `/equipements?univers=${u.cle}` : "/equipements"}
+              className={cn(
+                "rounded-full border bg-card px-3 py-1.5 text-sm",
+                filtres.univers === u.cle && "border-foreground bg-foreground text-background",
+              )}
+            >
+              {u.libelle}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       <form className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]" role="search">
+        {filtres.univers && <input type="hidden" name="univers" value={filtres.univers} />}
         <Input
           name="q"
           defaultValue={filtres.q}
@@ -111,7 +144,7 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
                     {e.code} — {e.libelle}
                   </div>
                   <div className="truncate text-sm text-muted-foreground">
-                    {[e.localisation, e.famille].filter(Boolean).join(" · ") || "Sans localisation"}
+                    {[e.univers, e.localisation, e.famille].filter(Boolean).join(" · ") || "Sans localisation"}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {e.statut !== "en_service" && (

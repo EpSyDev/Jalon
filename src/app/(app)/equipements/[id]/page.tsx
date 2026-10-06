@@ -70,6 +70,7 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
       )}
 
       <dl className="grid grid-cols-2 gap-4 rounded-lg border bg-card p-4 text-sm">
+        <Info libelle="Univers" valeur={e.univers} />
         <Info libelle="Famille" valeur={e.famille} />
         <Info libelle="Mise en service" valeur={e.date_mise_en_service && formaterDate(e.date_mise_en_service)} />
         <Info libelle="Marque" valeur={e.marque} />

@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ADMIN, executer, ID_INVALIDE, idsValides, RefusMetier, valider, type Resultat } from "@/lib/actions";
-import { schemaEquipement, schemaLocalisation } from "@/lib/metier/parc";
+import { schemaEquipement, schemaLocalisation, schemaUnivers } from "@/lib/metier/parc";
 
 const LIBELLES: Record<string, string> = {
   code: "Code",
   libelle: "Libellé",
   famille_id: "Famille",
   localisation_id: "Localisation",
+  univers_id: "Univers",
+  description: "Description",
   marque: "Marque",
   modele: "Modèle",
   numero_serie: "N° de série",
@@ -88,4 +90,28 @@ export async function archiverLocalisation(id: string): Promise<Resultat> {
   if (echec) return { erreur: echec };
   rafraichir();
   return { message: "Localisation archivée." };
+}
+
+// --- Univers ---------------------------------------------------------------------
+
+export async function creerUnivers(formData: FormData): Promise<Resultat> {
+  const { ok, donnees, erreur } = valider(schemaUnivers, formData, LIBELLES);
+  if (!ok) return { erreur };
+  const echec = await executer((tx) => tx`insert into public.univers ${tx(donnees)}`);
+  if (echec) return { erreur: echec.replace("Cet élément existe déjà.", "Un univers porte déjà ce nom.") };
+  rafraichir();
+  return { message: "Univers créé : vous pouvez maintenant y ajouter des équipements." };
+}
+
+export async function archiverUnivers(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer(async (tx) => {
+    const [{ n }] = await tx<{ n: number }[]>`
+      select count(*)::int as n from public.equipements where univers_id = ${id} and archive_le is null`;
+    if (n > 0) throw new RefusMetier(`${n} équipement(s) sont rattachés à cet univers : déplacez-les d'abord.`);
+    await tx`update public.univers set archive_le = now() where id = ${id}`;
+  }, ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: "Univers archivé." };
 }

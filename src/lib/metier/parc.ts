@@ -28,6 +28,7 @@ export const schemaEquipement = z.object({
     .max(60, "60 caractères maximum")
     .regex(/^[^\s/\\?#]+$/, "sans espace ni / \\ ? #"),
   libelle: z.string().trim().min(1, "obligatoire").max(200, "200 caractères maximum"),
+  univers_id: uuidOptionnel,
   famille_id: uuidOptionnel,
   localisation_id: uuidOptionnel,
   marque: texteOptionnel(120),
@@ -41,6 +42,11 @@ export const schemaEquipement = z.object({
     .refine((d) => d === null || d <= aujourdhuiParis(), "ne peut pas être dans le futur"),
   statut: z.enum(STATUTS_EQUIPEMENT, "statut obligatoire"),
   notes: texteOptionnel(2000),
+});
+
+export const schemaUnivers = z.object({
+  libelle: z.string().trim().min(1, "obligatoire").max(120, "120 caractères maximum"),
+  description: texteOptionnel(500),
 });
 
 export const schemaLocalisation = z.object({
