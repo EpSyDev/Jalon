@@ -1,15 +1,16 @@
 import Link from "next/link";
-import { ChevronRight, Layers, MapPin, Plus, QrCode } from "lucide-react";
-import { BadgeStatut } from "@/components/badges";
+import { Download, Layers, MapPin, Plus, QrCode } from "lucide-react";
 import { LienBouton } from "@/components/lien-bouton";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { requete } from "@/lib/auth";
-import { listerEquipements, listerUnivers, optionsEquipement } from "@/lib/requetes/parc";
+import { listerEquipements, listerUnivers, optionsEquipement, PAR_PAGE } from "@/lib/requetes/parc";
 import { cn } from "@/lib/utils";
 import { LIBELLES_STATUT_EQUIPEMENT } from "./champs-equipement";
+import { ListeEquipements } from "./liste-equipements";
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const metadata = { title: "Parc matériel — Jalon" };
 
@@ -19,19 +20,30 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
   const statut = texte(params.statut);
   const famille = texte(params.famille);
   const univers = texte(params.univers);
+  const localisation = texte(params.localisation);
   const filtres = {
     q: texte(params.q),
     statut: statut && statut in LIBELLES_STATUT_EQUIPEMENT ? statut : undefined,
-    famille: famille && /^[0-9a-f-]{36}$/.test(famille) ? famille : undefined,
-    univers: univers === "aucun" || (univers && /^[0-9a-f-]{36}$/.test(univers)) ? univers : undefined,
+    famille: famille && UUID.test(famille) ? famille : undefined,
+    univers: univers === "aucun" || (univers && UUID.test(univers)) ? univers : undefined,
+    localisation: localisation && UUID.test(localisation) ? localisation : undefined,
   };
+  const page = Math.min(Math.max(Number.parseInt(texte(params.page) ?? "1", 10) || 1, 1), 1000);
 
-  const { equipements, familles, listeUnivers, peutEcrire } = await requete(async (tx, u) => ({
-    equipements: await listerEquipements(tx, filtres),
-    familles: (await optionsEquipement(tx)).familles,
+  const { equipements, total, options, listeUnivers, peutEcrire } = await requete(async (tx, u) => ({
+    ...(await listerEquipements(tx, filtres, page)),
+    options: await optionsEquipement(tx),
     listeUnivers: await listerUnivers(tx),
     peutEcrire: u.role !== "lecture",
   }));
+  const familles = options.familles;
+  const pages = Math.max(1, Math.ceil(total / PAR_PAGE));
+  /** Adresse de la même liste (filtres conservés) à une autre page. */
+  const versPage = (n: number) => {
+    const q = new URLSearchParams(Object.entries(filtres).filter((e): e is [string, string] => Boolean(e[1])));
+    if (n > 1) q.set("page", String(n));
+    return `/equipements${q.size ? `?${q}` : ""}`;
+  };
 
   return (
     <div className="mx-auto grid max-w-4xl gap-4 p-4 md:p-8">
@@ -85,6 +97,7 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
 
       <form className="grid gap-2 sm:grid-cols-[1fr_auto_auto_auto]" role="search">
         {filtres.univers && <input type="hidden" name="univers" value={filtres.univers} />}
+        {filtres.localisation && <input type="hidden" name="localisation" value={filtres.localisation} />}
         <Input
           name="q"
           defaultValue={filtres.q}
@@ -123,46 +136,52 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
         </Button>
       </form>
 
-      <p className="text-sm text-muted-foreground">
-        {equipements.length} équipement{equipements.length > 1 ? "s" : ""}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+        <p>
+          {total} équipement{total > 1 ? "s" : ""}
+          {pages > 1 && ` · page ${page} sur ${pages}`}
+        </p>
+        {total > 0 && (
+          <a
+            href={`/equipements/export${versPage(1).slice("/equipements".length)}`}
+            className="inline-flex items-center gap-1 underline"
+          >
+            <Download className="size-4" aria-hidden />
+            Exporter (Excel)
+          </a>
+        )}
+      </div>
 
       {equipements.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
-          Aucun équipement. Créez-en un ou importez votre liste (menu Import).
+          {total === 0 && page === 1
+            ? "Aucun équipement. Créez-en un ou importez votre liste (menu Import)."
+            : "Aucun équipement sur cette page."}
         </p>
       ) : (
-        <ul className="grid gap-2">
-          {equipements.map((e) => (
-            <li key={e.id}>
-              <Link
-                href={`/equipements/${e.id}`}
-                className="flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50"
-              >
-                <div className="grid min-w-0 flex-1 gap-1">
-                  <div className="font-medium">
-                    {e.code} — {e.libelle}
-                  </div>
-                  <div className="truncate text-sm text-muted-foreground">
-                    {[e.univers, e.localisation, e.famille].filter(Boolean).join(" · ") || "Sans localisation"}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {e.statut !== "en_service" && (
-                      <Badge variant="outline">{LIBELLES_STATUT_EQUIPEMENT[e.statut]}</Badge>
-                    )}
-                    {e.synthese && <BadgeStatut statut={e.synthese} />}
-                    {e.statuts_plans.length > 0 && (
-                      <span className="text-sm text-muted-foreground">
-                        {e.statuts_plans.length} contrôle{e.statuts_plans.length > 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <ListeEquipements
+          equipements={equipements}
+          univers={options.univers}
+          localisations={options.localisations}
+          peutEcrire={peutEcrire}
+        />
+      )}
+
+      {pages > 1 && (
+        <nav className="flex items-center justify-between gap-2" aria-label="Pages">
+          {page > 1 ? (
+            <LienBouton href={versPage(page - 1)} variante="outline" className="h-11">
+              ← Précédents
+            </LienBouton>
+          ) : (
+            <span />
+          )}
+          {page < pages && (
+            <LienBouton href={versPage(page + 1)} variante="outline" className="h-11">
+              Suivants →
+            </LienBouton>
+          )}
+        </nav>
       )}
     </div>
   );

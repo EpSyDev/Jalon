@@ -55,6 +55,36 @@ export const schemaLocalisation = z.object({
   local: texteOptionnel(120),
 });
 
+/** Rattachement modifié en masse : "" = inchangé, "aucun" = retirer, sinon l'identifiant cible. */
+const rattachement = z
+  .union([z.literal(""), z.literal("aucun"), z.uuid()])
+  .default("")
+  .transform((v) => (v === "" ? undefined : v === "aucun" ? null : v));
+
+export const MAX_SELECTION = 500;
+
+/** Modification groupée de plusieurs équipements (univers, localisation, statut). */
+export const schemaModificationGroupee = z
+  .object({
+    ids: z.array(z.uuid()).min(1, "aucun équipement sélectionné").max(MAX_SELECTION, `${MAX_SELECTION} au maximum`),
+    univers_id: rattachement,
+    localisation_id: rattachement,
+    statut: z
+      .union([z.literal(""), z.enum(STATUTS_EQUIPEMENT)])
+      .default("")
+      .transform((v) => (v === "" ? undefined : v)),
+  })
+  .transform(({ ids, ...champs }) => ({
+    ids: [...new Set(ids)],
+    // Seuls les champs réellement modifiés sont écrits.
+    modifications: Object.fromEntries(Object.entries(champs).filter(([, v]) => v !== undefined)) as {
+      univers_id?: string | null;
+      localisation_id?: string | null;
+      statut?: (typeof STATUTS_EQUIPEMENT)[number];
+    },
+  }))
+  .refine((m) => Object.keys(m.modifications).length > 0, { message: "choisissez au moins une modification" });
+
 const GRAVITE: StatutEcheance[] = ["en_retard", "jamais_controle", "a_echeance", "a_jour"];
 
 /** Statut le plus urgent parmi les plans d'un équipement (null si aucun plan actif). */

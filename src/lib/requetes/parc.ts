@@ -17,14 +17,19 @@ export type EquipementListe = {
   synthese: StatutEcheance | null;
 };
 
+export const PAR_PAGE = 100;
+
 export async function listerEquipements(
   tx: Tx,
-  filtres: { q?: string; statut?: string; famille?: string; univers?: string },
-): Promise<EquipementListe[]> {
+  filtres: { q?: string; statut?: string; famille?: string; univers?: string; localisation?: string },
+  /** null : toute la liste (export). */
+  page: number | null = 1,
+): Promise<{ equipements: EquipementListe[]; total: number }> {
   const q = filtres.q?.trim() ? `%${filtres.q.trim()}%` : null;
-  const lignes = await tx<Omit<EquipementListe, "synthese">[]>`
+  const lignes = await tx<(Omit<EquipementListe, "synthese"> & { total: number })[]>`
     select e.id, e.code, e.libelle, e.statut, f.libelle as famille, u.libelle as univers, l.libelle_complet as localisation,
-      coalesce(array_agg(v.statut_echeance) filter (where v.statut_echeance is not null), '{}') as statuts_plans
+      coalesce(array_agg(v.statut_echeance) filter (where v.statut_echeance is not null), '{}') as statuts_plans,
+      (count(*) over ())::int as total
     from public.equipements e
     left join public.familles_controle f on f.id = e.famille_id
     left join public.univers u on u.id = e.univers_id
@@ -33,14 +38,20 @@ export async function listerEquipements(
     where e.archive_le is null
       and (${filtres.statut ?? null}::text is null or e.statut = ${filtres.statut ?? null})
       and (${filtres.famille ?? null}::uuid is null or e.famille_id = ${filtres.famille ?? null})
+      and (${filtres.localisation ?? null}::uuid is null or e.localisation_id = ${filtres.localisation ?? null})
       and (${filtres.univers === "aucun" ? "aucun" : null}::text is null or e.univers_id is null)
       and (${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null}::uuid is null
         or e.univers_id = ${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null})
       and (${q}::text is null or public.normaliser(e.code || ' ' || e.libelle || ' ' || coalesce(l.libelle_complet, ''))
         like public.normaliser(${q}))
     group by e.id, f.libelle, u.libelle, l.libelle_complet
-    order by e.code`;
-  return lignes.map((e) => ({ ...e, synthese: statutLePlusUrgent(e.statuts_plans) }));
+    order by e.code
+    limit ${page === null ? null : PAR_PAGE} offset ${page === null ? 0 : (Math.max(page, 1) - 1) * PAR_PAGE}`;
+  return {
+    // « total » (fenêtre SQL) reste sur l'objet : sans effet sur l'affichage.
+    equipements: lignes.map((e) => ({ ...e, synthese: statutLePlusUrgent(e.statuts_plans) })),
+    total: lignes[0]?.total ?? 0,
+  };
 }
 
 export type EquipementDetail = {

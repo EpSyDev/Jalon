@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPlus } from "lucide-react";
+import { ChevronRight, ClipboardPlus, Download } from "lucide-react";
 import { BadgeReserves, BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
+import { buttonVariants } from "@/components/ui/button";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_STATUT, ORDRE_STATUT } from "@/lib/format";
 import type { StatutEcheance } from "@/lib/metier/echeance";
@@ -31,6 +32,10 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
           <LienBouton href="/controles/types" variante="outline">
             Types de contrôle
           </LienBouton>
+          <a href="/controles/export" className={buttonVariants({ variant: "outline" })}>
+            <Download className="size-4" aria-hidden />
+            Exporter (Excel)
+          </a>
           {peutEcrire && (
             <LienBouton href="/controles/plans/nouveau" variante="outline">
               Nouveau plan
