@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPlus, Download } from "lucide-react";
+import { ChevronRight, ClipboardPlus, Download, Route } from "lucide-react";
 import { BadgeReserves, BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
 import { buttonVariants } from "@/components/ui/button";
@@ -29,6 +29,10 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Contrôles</h1>
         <div className="flex flex-wrap gap-2">
+          <LienBouton href="/controles/tournee" variante="outline">
+            <Route className="size-4" aria-hidden />
+            Tournée
+          </LienBouton>
           <LienBouton href="/controles/types" variante="outline">
             Types de contrôle
           </LienBouton>

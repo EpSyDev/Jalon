@@ -164,3 +164,20 @@ describe("trous dans le suivi", () => {
     ]);
   });
 });
+
+describe("tournée", () => {
+  it("regroupe par local dans l'ordre reçu, sans local à la fin", async () => {
+    const { grouperParLocal } = await import("@/lib/metier/tournee");
+    const arrets = grouperParLocal([
+      { id: 1, localisation_id: null, localisation: null },
+      { id: 2, localisation_id: "a", localisation: "Bât A / RDC" },
+      { id: 3, localisation_id: "b", localisation: "Bât B" },
+      { id: 4, localisation_id: "a", localisation: "Bât A / RDC" },
+    ]);
+    expect(arrets.map((a) => [a.localisation, a.plans.map((p) => p.id)])).toEqual([
+      ["Bât A / RDC", [2, 4]],
+      ["Bât B", [3]],
+      ["Sans local (installation ou périmètre)", [1]],
+    ]);
+  });
+});
