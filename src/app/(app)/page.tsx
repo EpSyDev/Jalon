@@ -30,6 +30,8 @@ import {
 import type { PlanEcheance } from "@/lib/requetes/controles";
 import { messageSauvegarde } from "@/lib/metier/sauvegarde";
 import { etatSauvegarde } from "@/lib/requetes/sauvegarde-etat";
+import { formaterValeur, libelleSeuils, LIBELLES_STATUT_RELEVE } from "@/lib/metier/releves";
+import { avecEtat, type PointAvecEtat } from "@/lib/requetes/releves";
 import { verifications } from "@/lib/requetes/verifications";
 import { cn } from "@/lib/utils";
 
@@ -202,6 +204,28 @@ function LigneIntervention({ i, aujourdhui }: { i: InterventionOuverte; aujourdh
   );
 }
 
+function LigneReleve({ p }: { p: PointAvecEtat }) {
+  const seuils = libelleSeuils(p.seuil_min, p.seuil_max, p.unite);
+  return (
+    <li>
+      <Link href={`/releves/${p.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+        <span className="font-medium">{p.libelle}</span>
+        <span className="text-sm text-muted-foreground">
+          {[p.equipement_code, p.localisation].filter(Boolean).join(" · ") || "Relevé périodique"}
+        </span>
+        {p.hors_seuil && p.derniere_valeur !== null ? (
+          <span className="text-sm font-medium text-destructive">
+            {formaterValeur(p.derniere_valeur, p.unite)} {p.hors_seuil === "bas" ? "sous" : "au-dessus de"} la limite
+            {seuils && ` (${seuils})`}
+          </span>
+        ) : (
+          <span className="text-sm">{LIBELLES_STATUT_RELEVE[p.statut]}</span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
 export default async function PageAujourdhui() {
   const aujourdhui = aujourdhuiParis();
   const {
@@ -210,6 +234,7 @@ export default async function PageAujourdhui() {
     reserves,
     interventions: ouvertes,
     chantiers,
+    points,
     contrats,
     seuilJours,
     destinataires,
@@ -242,7 +267,13 @@ export default async function PageAujourdhui() {
     .map((c) => ({ chantier: c, retard: retardChantier(c, aujourdhui) }))
     .filter((x): x is { chantier: ChantierSuivi; retard: RetardChantier } => x.retard !== null);
 
+  const relevesEtat = points.map((p) => avecEtat(p, aujourdhui));
+  const relevesHorsSeuil = relevesEtat.filter((p) => p.hors_seuil !== null);
+  const relevesEnAttente = relevesEtat.filter((p) => p.statut !== "a_jour");
+
   const aTraiter =
+    relevesEnAttente.length +
+    relevesHorsSeuil.length +
     enRetard.length +
     jamais.length +
     aEcheance.length +
@@ -312,6 +343,18 @@ export default async function PageAujourdhui() {
       <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
         {interventions.map((i) => (
           <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
+        ))}
+      </Section>
+
+      <Section titre="Valeurs hors seuil" nombre={relevesHorsSeuil.length} ton="rouge">
+        {relevesHorsSeuil.map((p) => (
+          <LigneReleve key={p.id} p={p} />
+        ))}
+      </Section>
+
+      <Section titre="Relevés à faire" nombre={relevesEnAttente.length} ton="ambre">
+        {relevesEnAttente.map((p) => (
+          <LigneReleve key={p.id} p={p} />
         ))}
       </Section>
 

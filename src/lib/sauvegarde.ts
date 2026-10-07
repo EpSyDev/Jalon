@@ -18,6 +18,8 @@ export const TABLES = [
   "familles_controle",
   "univers",
   "equipements",
+  "points_releve",
+  "releves",
   "contrats",
   "types_controle",
   "plans_controle",

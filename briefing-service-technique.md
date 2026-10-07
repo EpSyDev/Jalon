@@ -204,6 +204,12 @@ Un second axe, indépendant : **`reserves_ouvertes`** (au moins une réserve ouv
   réserves « à détailler » ; contrôles réglementaires ou obligatoires sans prestataire ; contrats sans date de fin ;
   équipements en service sans contrôle.
 - **Tournée** : « Conforme » enregistre un contrôle conforme daté du jour, après une seconde touche de confirmation.
+- **Retards** (écran Aujourd'hui et récapitulatif du lundi) : intervention non terminée dont la date prévue est
+  passée ; chantier actif dont la fin prévue est passée, ou « prévu » alors que son début est passé.
+- **Sauvegarde** : l'instant de chaque export est mémorisé ; alerte admin et ligne du récapitulatif au-delà de 7 jours.
+- **Relevés périodiques** : un point de relevé a une périodicité en jours (1 à 366) et des seuils facultatifs fixés
+  par l'utilisateur (Jalon n'en propose aucun). Le jour de l'échéance, le relevé est « à faire aujourd'hui » ; retard
+  dès le lendemain. Une valeur hors seuil est enregistrée (c'est un fait) puis signalée.
 - **Dates constatées** (levée, clôture, fin réelle, mouvement, mise en service) : jamais dans le futur, vérifié aussi en base.
 - **Comptes** : invitation et réinitialisation par lien reçu par mail, consommé seulement au clic ; échecs de
   connexion limités (5 par adresse, 30 par IP sur 15 min ; 5 codes 2FA par compte).

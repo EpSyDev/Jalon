@@ -2,6 +2,7 @@ import "server-only";
 import { avecServiceRole } from "@/lib/db";
 import { lireEnvRappels, type EnvRappels } from "@/lib/env";
 import { composerMail } from "@/lib/mail/composer";
+import { listerPoints } from "@/lib/requetes/releves";
 import { envoyerMail } from "@/lib/mail/envoi";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { CLE_DERNIERE_SAUVEGARDE, etatSauvegarde, messageSauvegarde } from "@/lib/metier/sauvegarde";
@@ -43,7 +44,7 @@ export async function executerRappels(): Promise<BilanRappels> {
         p.valeur,
       ]),
     );
-    const [plans, contrats, reserves, envoyes, interventions, chantiers] = await Promise.all([
+    const [plans, contrats, reserves, envoyes, interventions, chantiers, releves] = await Promise.all([
       tx<EntreeRappels["plans"]>`
         select plan_controle_id as id, type_libelle as libelle, coalesce(equipement_code, perimetre) as perimetre,
           prochaine_echeance as echeance, statut_echeance as statut
@@ -68,6 +69,7 @@ export async function executerRappels(): Promise<BilanRappels> {
       tx<NonNullable<EntreeRappels["chantiers"]>>`
         select id, titre, statut, date_debut, date_fin_prevue from public.chantiers
         where archive_le is null and statut in ('prevu', 'en_cours', 'suspendu')`,
+      listerPoints(tx, true),
     ]);
     const seuilsParam = parametres.get("seuils_rappel_jours");
     const seuils = normaliserSeuils(Array.isArray(seuilsParam) ? seuilsParam : []);
@@ -85,6 +87,7 @@ export async function executerRappels(): Promise<BilanRappels> {
         reserves,
         interventions,
         chantiers,
+        releves,
         alerteSauvegarde: messageSauvegarde(etatSauvegarde(derniereSauvegarde, aujourdhui)),
         dejaEnvoyes: new Set(envoyes.map(cleRappel)),
       } satisfies EntreeRappels,
