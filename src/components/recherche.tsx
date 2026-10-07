@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Boxes,
   Building2,
+  Contact,
   ClipboardCheck,
   FileText,
   HardHat,
@@ -24,6 +25,7 @@ const TYPES: Record<string, { libelle: string; icone: LucideIcon }> = {
   contrat: { libelle: "Contrat", icone: FileText },
   intervention: { libelle: "Intervention", icone: Wrench },
   chantier: { libelle: "Chantier", icone: HardHat },
+  contact: { libelle: "Contact", icone: Contact },
 };
 
 const EVENEMENT_OUVERTURE = "jalon:recherche";
@@ -143,7 +145,7 @@ export function FenetreRecherche() {
               aller(resultats[actif]);
             }
           }}
-          placeholder="Équipement, contrôle, prestataire, contrat…"
+          placeholder="Équipement, contrôle, prestataire, contact…"
           aria-label="Rechercher"
           role="combobox"
           aria-expanded={resultats.length > 0}

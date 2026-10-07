@@ -99,3 +99,23 @@ describe("trous dans le suivi (pilote postgres)", () => {
     expect(parCle.reserves?.length).toBeGreaterThan(0);
   });
 });
+
+describe("contacts (pilote postgres)", () => {
+  it("technicien crée, recherche globale le trouve (sans accents), lecture seule ne crée pas, personne ne supprime", async () => {
+    const { listerContacts } = await import("@/lib/requetes/contacts");
+    const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      await tx`insert into public.contacts (nom, organisation, telephone) values ('Hélène Martin', 'Pompiers', '18')`;
+      const filtre = await listerContacts(tx, "helene");
+      const recherche = await tx<
+        { type: string; titre: string }[]
+      >`select type, titre from public.rechercher('helene', 5)`;
+      return { filtre, recherche };
+    });
+    expect(r.filtre.map((c) => c.nom)).toEqual(["Hélène Martin"]);
+    expect(r.recherche).toEqual([{ type: "contact", titre: "Hélène Martin" }]);
+    await expect(
+      enTantQueUtilisateur(p.sql, "lecture", (tx) => tx`insert into public.contacts (nom) values ('X')`),
+    ).rejects.toThrow();
+    await expect(enTantQueUtilisateur(p.sql, "admin", (tx) => tx`delete from public.contacts`)).rejects.toThrow();
+  });
+});
