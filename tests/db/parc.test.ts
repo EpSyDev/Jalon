@@ -85,3 +85,17 @@ describe("journal d'audit (pilote postgres)", () => {
     expect(technicien.entrees).toEqual([]);
   });
 });
+
+describe("trous dans le suivi (pilote postgres)", () => {
+  it("équipement en service sans plan signalé ; réserve « à détailler » signalée", async () => {
+    const { verifications } = await import("@/lib/requetes/verifications");
+    const categories = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      await tx`insert into public.equipements (code, libelle) values ('SANS-PLAN', 'Orphelin')`;
+      return verifications(tx);
+    });
+    const parCle = Object.fromEntries(categories.map((c) => [c.cle, c.elements.map((e) => e.libelle)]));
+    expect(parCle.equipements).toContain("SANS-PLAN — Orphelin");
+    expect(parCle.equipements).not.toContain(expect.stringMatching(/^TGBT-A/));
+    expect(parCle.reserves?.length).toBeGreaterThan(0);
+  });
+});

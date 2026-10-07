@@ -24,7 +24,10 @@ export async function verifications(tx: Tx, plansLus?: EntreeVerifications["plan
     tx<EntreeVerifications["equipementsSansPlan"]>`
       select e.id, e.code, e.libelle from public.equipements e
       where e.archive_le is null and e.statut = 'en_service'
-        and not exists (select 1 from public.v_plans_controle_echeance v where v.equipement_id = e.id)
+        and not exists (
+          select 1 from public.plans_controle p
+          join public.types_controle t on t.id = p.type_controle_id and t.archive_le is null
+          where p.equipement_id = e.id and p.actif and p.archive_le is null)
       order by e.code`,
   ]);
   return trousDuSuivi({
