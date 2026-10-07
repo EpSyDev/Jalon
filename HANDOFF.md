@@ -1,4 +1,32 @@
-# Passation Jalon : état au 07/10/2026
+# Passation Jalon : état au 08/10/2026
+
+> **Mise à jour du 08/10/2026 (lire d'abord, elle prime sur le reste).** Travail direct sur `main`, push automatique
+> autorisé par Nico. Les migrations SQL sont **appliquées par Nico** (SQL Editor de Supabase, fichier envoyé avec
+> SendUserFile) : ne jamais utiliser un jeton collé dans la conversation (refusé par le classificateur), ne pousser le
+> code dépendant d'une migration qu'après sa confirmation.
+>
+> **Livré depuis le 07/10 (tout en production, 274 tests verts)** : audit complet (`AUDIT.md`), contacts (annuaire +
+> reprise automatique des prestataires), formulaire unique « Nouveau contrôle » et liste par famille puis caractère,
+> mode tournée, journal d'audit lisible, passage de relais, trous dans le suivi, jalon du jour, interventions et
+> chantiers en retard, alerte de sauvegarde (7 jours), réserve → intervention, fiche équipement complète, relevés
+> périodiques, import d'équipements enrichi (univers commun, codes générés par préfixe, colonnes en notes, feuilles
+> multiples, .xlsm), création d'utilisateurs depuis Paramètres, boutons « Contrôle effectué » / « Effectué ».
+>
+> **Migrations appliquées en production** : 0100 limitation de connexion, 0200 garde-fous de dates, 0300 contacts,
+> 0400 relevés (à confirmer : la ligne d'enregistrement dans `supabase_migrations.schema_migrations` pour 0300 et 0400).
+>
+> **À faire par Nico** : ajouter `SUPABASE_SERVICE_ROLE_KEY` sur Vercel (sinon la page Utilisateurs explique quoi
+> faire) ; révoquer les jetons Supabase partagés dans les conversations ; poser les modèles de mail Supabase et un SMTP
+> (invitation par mail, « mot de passe oublié ») ; désactiver l'API de données Supabase ; télécharger une première
+> sauvegarde (Paramètres) ; feu vert DSI avant toute donnée réelle ; tester en réel connexion, 2FA admin, limitation.
+>
+> **Pistes écartées par Nico** : contacts par lieu, stock ↔ intervention, Ctrl+K sur stock/univers, plans de
+> prévention. **Pistes restantes** : demande d'intervention depuis le QR par un compte lecture, relecture des
+> déplacements groupés, PWA/hors ligne, 2FA pour tous, tests Playwright automatisés, format .xls (non pris en charge,
+> demande une dépendance : à décider).
+>
+> **Pièges de cette session** : les heredocs shell avec apostrophes échouent (utiliser Write/Edit ou un script .cjs
+> dans le scratchpad) ; après chaque nouvelle route `npx next typegen` ; `git add` ciblé (jamais `-A` à la racine).
 
 > Document de reprise pour une nouvelle session. Tout ce qui est écrit ici a été **vérifié** pendant la session précédente, sauf mention « non vérifié ». En cas de doute, relire le code ou interroger la base plutôt que se fier à ce texte. Lire aussi `briefing-service-technique.md` (référence fonctionnelle) et `README.md`.
 
