@@ -49,3 +49,6 @@ supabase/.branches
 
 # sauvegardes de données (jamais dans le dépôt)
 sauvegardes/
+
+.vercel
+.env*

@@ -1,6 +1,6 @@
 # Tâche autonome : audit complet de Jalon et montée en gamme
 
-> À lire en entier, avec `briefing-service-technique.md` et `README.md`. Modèle visé : Opus 5.5, effort maximal.
+> **Lire d'abord `HANDOFF.md`** (état vérifié du projet, production, pièges). À lire en entier, avec `briefing-service-technique.md` et `README.md`. Vérifier les affirmations de HANDOFF.md dans le code avant de s'y fier. Modèle visé : Opus 5.5, effort maximal.
 > Utilisateur : Nico, parle français, veut des réponses courtes. Tout en français dans l'interface.
 
 ## Garde-fous (non négociables)
