@@ -7,6 +7,8 @@ import { LienBouton } from "@/components/lien-bouton";
 import { Badge } from "@/components/ui/badge";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_RESULTAT } from "@/lib/format";
+import { lienTelephone } from "@/lib/metier/contacts";
+import { entourageEquipement } from "@/lib/requetes/entourage-equipement";
 import { ficheEquipement, lireEquipement } from "@/lib/requetes/parc";
 import { LIBELLES_STATUT_EQUIPEMENT } from "../champs-equipement";
 import { HistoriqueFiche } from "@/components/journal";
@@ -38,10 +40,16 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
     const equipement = await lireEquipement(tx, id);
     if (!equipement) return null;
     const journal = u.role === "admin" ? await historiqueFiche(tx, "equipements", id) : HISTORIQUE_VIDE;
-    return { equipement, ...(await ficheEquipement(tx, id)), journal, role: u.role };
+    return {
+      equipement,
+      ...(await ficheEquipement(tx, id)),
+      entourage: await entourageEquipement(tx, id),
+      journal,
+      role: u.role,
+    };
   });
   if (!donnees) notFound();
-  const { equipement: e, plans, controles, interventions, journal, role } = donnees;
+  const { equipement: e, plans, controles, interventions, entourage, journal, role } = donnees;
   const peutEcrire = role !== "lecture";
 
   return (
@@ -152,6 +160,78 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
           ))}
         </ul>
       </section>
+
+      {(entourage.partenaires.length > 0 || entourage.contrats.length > 0 || entourage.chantiers.length > 0) && (
+        <section className="grid gap-3">
+          <h2 className="text-lg font-semibold">Qui, quoi, avec quel contrat</h2>
+          <ul className="grid gap-2">
+            {entourage.partenaires.map((p) => (
+              <li key={p.id} className="grid gap-2 rounded-lg border bg-card p-3 text-sm">
+                <Link href={`/prestataires/${p.id}`} className="font-medium underline">
+                  {p.nom}
+                </Link>
+                {p.contacts.length === 0 ? (
+                  <span className="text-muted-foreground">Aucun contact dans l&apos;annuaire.</span>
+                ) : (
+                  <ul className="grid gap-1.5">
+                    {p.contacts.map((c) => (
+                      <li key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                        <Link href={`/contacts/${c.id}`} className="underline-offset-2 hover:underline">
+                          {c.nom}
+                          {c.fonction && <span className="text-muted-foreground"> · {c.fonction}</span>}
+                        </Link>
+                        <span className="flex gap-2">
+                          {c.telephone && (
+                            <a
+                              href={lienTelephone(c.telephone)}
+                              className="inline-flex min-h-11 items-center rounded-md border px-3"
+                            >
+                              {c.telephone}
+                            </a>
+                          )}
+                          {c.email && (
+                            <a
+                              href={`mailto:${c.email}`}
+                              aria-label={`Écrire à ${c.nom}`}
+                              className="inline-flex min-h-11 items-center rounded-md border px-3"
+                            >
+                              Mail
+                            </a>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+            {entourage.contrats.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/contrats/${c.id}`}
+                  className="grid gap-0.5 rounded-lg border bg-card p-3 text-sm hover:bg-muted/50"
+                >
+                  <span className="font-medium">Contrat : {c.objet}</span>
+                  <span className="text-muted-foreground">
+                    {c.prestataire_nom}
+                    {c.date_fin ? ` · fin le ${formaterDate(c.date_fin)}` : " · sans date de fin"}
+                  </span>
+                </Link>
+              </li>
+            ))}
+            {entourage.chantiers.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/chantiers/${c.id}`}
+                  className="block rounded-lg border bg-card p-3 text-sm hover:bg-muted/50"
+                >
+                  <span className="font-medium">Chantier : {c.titre}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="grid gap-3">
         <h2 className="text-lg font-semibold">Historique des contrôles</h2>

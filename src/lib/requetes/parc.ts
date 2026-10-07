@@ -115,7 +115,9 @@ export async function ficheEquipement(tx: Tx, id: string) {
       order by c.date_realisation desc limit 20`,
     tx<{ id: string; titre: string; statut: string; priorite: string; date_demande: string }[]>`
       select id, titre, statut, priorite, date_demande from public.interventions
-      where equipement_id = ${id} and archive_le is null
+      where archive_le is null
+        and (equipement_id = ${id}
+          or plan_controle_id in (select p.id from public.plans_controle p where p.equipement_id = ${id}))
       order by (statut in ('terminee', 'annulee')), date_demande desc limit 20`,
   ]);
   return { plans, controles, interventions };
