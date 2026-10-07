@@ -12,14 +12,24 @@ export type ReserveOuverte = {
   perimetre: string | null;
 };
 
-export type InterventionUrgente = {
+export type InterventionOuverte = {
   id: string;
   titre: string;
   statut: "a_faire" | "en_cours" | "en_attente";
+  priorite: "basse" | "normale" | "haute" | "urgente";
   date_prevue: string | null;
   date_demande: string;
   equipement_code: string | null;
   assignee_nom: string | null;
+};
+
+export type ChantierSuivi = {
+  id: string;
+  titre: string;
+  statut: "prevu" | "en_cours" | "suspendu";
+  date_debut: string | null;
+  date_fin_prevue: string | null;
+  responsable_nom: string | null;
 };
 
 export type ContratSuivi = {
@@ -33,7 +43,7 @@ export type ContratSuivi = {
 
 /** Toutes les données de l'écran « Aujourd'hui », en une transaction. */
 export async function donneesAujourdhui(tx: Tx) {
-  const [plans, reserves, interventions, contrats, [seuil]] = await Promise.all([
+  const [plans, reserves, interventions, chantiers, contrats, [seuil]] = await Promise.all([
     listerPlans(tx),
     tx<ReserveOuverte[]>`
       select r.id, r.description, r.gravite, r.echeance_levee, p.id as plan_controle_id, t.libelle as type_libelle,
@@ -45,13 +55,19 @@ export async function donneesAujourdhui(tx: Tx) {
       left join public.equipements e on e.id = p.equipement_id
       where r.statut = 'ouverte' and r.archive_le is null
       order by r.echeance_levee nulls last, r.date_constat`,
-    tx<InterventionUrgente[]>`
-      select i.id, i.titre, i.statut, i.date_prevue, i.date_demande, e.code as equipement_code, pf.nom as assignee_nom
+    // Toutes les interventions non terminées : urgentes et en retard sont triées côté TypeScript (metier/retards).
+    tx<InterventionOuverte[]>`
+      select i.id, i.titre, i.statut, i.priorite, i.date_prevue, i.date_demande, e.code as equipement_code, pf.nom as assignee_nom
       from public.interventions i
       left join public.equipements e on e.id = i.equipement_id
       left join public.profils pf on pf.id = i.assignee_id
-      where i.priorite = 'urgente' and i.statut not in ('terminee', 'annulee') and i.archive_le is null
+      where i.statut not in ('terminee', 'annulee') and i.archive_le is null
       order by i.date_demande`,
+    tx<ChantierSuivi[]>`
+      select c.id, c.titre, c.statut, c.date_debut, c.date_fin_prevue, pf.nom as responsable_nom
+      from public.chantiers c left join public.profils pf on pf.id = c.responsable_id
+      where c.statut in ('prevu', 'en_cours', 'suspendu') and c.archive_le is null
+      order by c.date_fin_prevue nulls last`,
     tx<ContratSuivi[]>`
       select c.id, c.objet, p.nom as prestataire_nom, c.date_fin, c.preavis_jours, c.reconduction_tacite
       from public.contrats c
@@ -64,5 +80,13 @@ export async function donneesAujourdhui(tx: Tx) {
         coalesce((select jsonb_array_length(valeur) from public.parametres
           where cle = 'destinataires_rappels' and jsonb_typeof(valeur) = 'array'), 0) as destinataires`,
   ]);
-  return { plans, reserves, interventions, contrats, seuilJours: seuil.jours, destinataires: seuil.destinataires };
+  return {
+    plans,
+    reserves,
+    interventions,
+    chantiers,
+    contrats,
+    seuilJours: seuil.jours,
+    destinataires: seuil.destinataires,
+  };
 }

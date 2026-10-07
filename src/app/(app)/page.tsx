@@ -12,8 +12,24 @@ import { jalonDuJour, regroupements, type JalonDuJour, type Regroupement } from 
 import { formaterDate, LIBELLES_GRAVITE } from "@/lib/format";
 import { alerteContrat, type AlerteContrat } from "@/lib/metier/contrats";
 import { aujourdhuiParis, FUSEAU } from "@/lib/metier/echeance";
-import { donneesAujourdhui, type ContratSuivi, type ReserveOuverte } from "@/lib/requetes/aujourdhui";
+import { LIBELLES_STATUT_CHANTIER, LIBELLES_STATUT_INTERVENTION } from "@/lib/metier/interventions";
+import {
+  depuisJours,
+  interventionEnRetard,
+  messageRetardChantier,
+  retardChantier,
+  type RetardChantier,
+} from "@/lib/metier/retards";
+import {
+  donneesAujourdhui,
+  type ChantierSuivi,
+  type ContratSuivi,
+  type InterventionOuverte,
+  type ReserveOuverte,
+} from "@/lib/requetes/aujourdhui";
 import type { PlanEcheance } from "@/lib/requetes/controles";
+import { messageSauvegarde } from "@/lib/metier/sauvegarde";
+import { etatSauvegarde } from "@/lib/requetes/sauvegarde-etat";
 import { verifications } from "@/lib/requetes/verifications";
 import { cn } from "@/lib/utils";
 
@@ -166,14 +182,48 @@ function rappelsInactifs(destinataires: number): string | null {
   return destinataires === 0 ? "Rappels mail inactifs : aucun destinataire n'est renseigné." : null;
 }
 
+function LigneIntervention({ i, aujourdhui }: { i: InterventionOuverte; aujourdhui: string }) {
+  const enRetard = interventionEnRetard(i, aujourdhui);
+  return (
+    <li>
+      <Link href={`/interventions/${i.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+        <span className="font-medium">{i.titre}</span>
+        <span className="text-sm text-muted-foreground">
+          {[i.equipement_code, LIBELLES_STATUT_INTERVENTION[i.statut], i.assignee_nom].filter(Boolean).join(" · ")}
+        </span>
+        {i.date_prevue && (
+          <span className={cn("text-sm", enRetard && "font-medium text-destructive")}>
+            Prévue le {formaterDate(i.date_prevue)}
+            {enRetard && ` (${depuisJours(i.date_prevue, aujourdhui)})`}
+          </span>
+        )}
+      </Link>
+    </li>
+  );
+}
+
 export default async function PageAujourdhui() {
   const aujourdhui = aujourdhuiParis();
-  const { utilisateur, plans, reserves, interventions, contrats, seuilJours, destinataires, aVerifier } = await requete(
-    async (tx, u) => {
-      const donnees = await donneesAujourdhui(tx);
-      return { utilisateur: u, ...donnees, aVerifier: await verifications(tx, donnees.plans) };
-    },
-  );
+  const {
+    utilisateur,
+    plans,
+    reserves,
+    interventions: ouvertes,
+    chantiers,
+    contrats,
+    seuilJours,
+    destinataires,
+    aVerifier,
+    sauvegarde,
+  } = await requete(async (tx, u) => {
+    const donnees = await donneesAujourdhui(tx);
+    return {
+      utilisateur: u,
+      ...donnees,
+      aVerifier: await verifications(tx, donnees.plans),
+      sauvegarde: u.role === "admin" ? await etatSauvegarde(tx, aujourdhui) : null,
+    };
+  });
   const peutEcrire = utilisateur.role !== "lecture";
 
   const parStatut = (s: PlanEcheance["statut_echeance"]) => plans.filter((p) => p.statut_echeance === s);
@@ -186,12 +236,26 @@ export default async function PageAujourdhui() {
     .map((c) => ({ contrat: c, alerte: alerteContrat(c, aujourdhui, seuilJours) }))
     .filter((x): x is { contrat: ContratSuivi; alerte: AlerteContrat } => x.alerte !== null);
 
+  const interventions = ouvertes.filter((i) => i.priorite === "urgente");
+  const interventionsEnRetard = ouvertes.filter((i) => i.priorite !== "urgente" && interventionEnRetard(i, aujourdhui));
+  const chantiersEnRetard = chantiers
+    .map((c) => ({ chantier: c, retard: retardChantier(c, aujourdhui) }))
+    .filter((x): x is { chantier: ChantierSuivi; retard: RetardChantier } => x.retard !== null);
+
   const aTraiter =
-    enRetard.length + jamais.length + aEcheance.length + reserves.length + interventions.length + contratsAlerte.length;
+    enRetard.length +
+    jamais.length +
+    aEcheance.length +
+    reserves.length +
+    interventions.length +
+    interventionsEnRetard.length +
+    chantiersEnRetard.length +
+    contratsAlerte.length;
   const rienDUrgent = aTraiter === 0;
   const jalon = jalonDuJour({ aujourdhui, plans, reserves, interventions, contrats: contratsAlerte });
   const groupes = regroupements(plans, aujourdhui, seuilJours);
   const nbAVerifier = aVerifier.reduce((n, c) => n + c.elements.length, 0);
+  const alerteSauvegarde = sauvegarde ? messageSauvegarde(sauvegarde) : null;
   const alerteRappels = utilisateur.role === "admin" ? rappelsInactifs(destinataires) : null;
 
   return (
@@ -206,6 +270,15 @@ export default async function PageAujourdhui() {
           </p>
         )}
       </header>
+
+      {alerteSauvegarde && (
+        <p role="alert" className="rounded-md bg-amber-400/20 p-3 text-sm">
+          {alerteSauvegarde}{" "}
+          <Link href="/parametres" className="font-medium underline">
+            Télécharger une sauvegarde
+          </Link>
+        </p>
+      )}
 
       {alerteRappels && (
         <p role="alert" className="rounded-md bg-amber-400/20 p-3 text-sm">
@@ -238,18 +311,26 @@ export default async function PageAujourdhui() {
 
       <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
         {interventions.map((i) => (
-          <li key={i.id}>
-            <Link href={`/interventions/${i.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
-              <span className="font-medium">{i.titre}</span>
+          <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
+        ))}
+      </Section>
+
+      <Section titre="Interventions en retard" nombre={interventionsEnRetard.length} ton="rouge">
+        {interventionsEnRetard.map((i) => (
+          <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
+        ))}
+      </Section>
+
+      <Section titre="Chantiers en retard" nombre={chantiersEnRetard.length} ton="ambre">
+        {chantiersEnRetard.map(({ chantier: c, retard }) => (
+          <li key={c.id}>
+            <Link href={`/chantiers/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+              <span className="font-medium">{c.titre}</span>
               <span className="text-sm text-muted-foreground">
-                {[
-                  i.equipement_code,
-                  { a_faire: "À faire", en_cours: "En cours", en_attente: "En attente" }[i.statut],
-                  i.assignee_nom,
-                  i.date_prevue && `prévue le ${formaterDate(i.date_prevue)}`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
+                {[LIBELLES_STATUT_CHANTIER[c.statut], c.responsable_nom].filter(Boolean).join(" · ")}
+              </span>
+              <span className="text-sm font-medium text-destructive">
+                {messageRetardChantier(c, retard, aujourdhui)}
               </span>
             </Link>
           </li>

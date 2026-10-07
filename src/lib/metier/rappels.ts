@@ -3,6 +3,7 @@
 
 import { differenceInCalendarDays, getISODay, parseISO } from "date-fns";
 import { alerteContrat, limitePreavis } from "./contrats";
+import { depuisJours, interventionEnRetard, messageRetardChantier, retardChantier } from "./retards";
 
 export type CibleRappel = "plan_controle" | "contrat" | "reserve" | "recap_hebdo";
 
@@ -38,6 +39,18 @@ export type EntreeRappels = {
     plan_libelle: string;
     echeance_levee: string | null;
   }[];
+  /** Interventions non terminées (seules celles en retard figurent au récapitulatif). */
+  interventions?: { id: string; titre: string; statut: string; date_prevue: string | null }[];
+  /** Chantiers actifs (seuls ceux en retard figurent au récapitulatif). */
+  chantiers?: {
+    id: string;
+    titre: string;
+    statut: string;
+    date_debut: string | null;
+    date_fin_prevue: string | null;
+  }[];
+  /** Message d'alerte sur la sauvegarde (null = récente). Une panne de sauvegarde se lit au récapitulatif. */
+  alerteSauvegarde?: string | null;
   /** Clés « cible_type|cible_id|seuil|echeance » déjà enregistrées. */
   dejaEnvoyes: Set<string>;
 };
@@ -158,6 +171,26 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
         });
       }
     }
+    for (const i of e.interventions ?? []) {
+      if (interventionEnRetard(i, e.aujourdhui)) {
+        lignes.push({
+          libelle: i.titre,
+          detail: `intervention prévue le ${fr(i.date_prevue!)} (${depuisJours(i.date_prevue!, e.aujourdhui)})`,
+          lien: `/interventions/${i.id}`,
+        });
+      }
+    }
+    for (const c of e.chantiers ?? []) {
+      const retard = retardChantier(c, e.aujourdhui);
+      if (retard) {
+        lignes.push({
+          libelle: c.titre,
+          detail: `chantier : ${messageRetardChantier(c, retard, e.aujourdhui).toLowerCase()}`,
+          lien: `/chantiers/${c.id}`,
+        });
+      }
+    }
+    if (e.alerteSauvegarde) lignes.push({ libelle: "Sauvegarde", detail: e.alerteSauvegarde, lien: "/parametres" });
     recap = { du: e.aujourdhui, lignes };
   }
 

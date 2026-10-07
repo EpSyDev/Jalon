@@ -153,3 +153,37 @@ describe("récapitulatif hebdomadaire", () => {
 it("normaliserSeuils", () => {
   expect(normaliserSeuils([7, 60, 30, 30, 0, 400, 2.5])).toEqual([60, 30, 7]);
 });
+
+describe("récapitulatif : retards d'interventions, de chantiers et sauvegarde", () => {
+  it("ajoute les retards et l'alerte de sauvegarde, sans reprendre de texte libre", () => {
+    const r = calculerRappels(
+      base({
+        aujourdhui: LUNDI,
+        interventions: [
+          { id: "i1", titre: "Fuite vanne", statut: "a_faire", date_prevue: "2026-10-01" },
+          { id: "i2", titre: "Pas en retard", statut: "a_faire", date_prevue: "2026-10-05" },
+          { id: "i3", titre: "Terminée", statut: "terminee", date_prevue: "2026-09-01" },
+        ],
+        chantiers: [
+          {
+            id: "c1",
+            titre: "Réfection toiture",
+            statut: "en_cours",
+            date_debut: "2026-08-01",
+            date_fin_prevue: "2026-10-02",
+          },
+        ],
+        alerteSauvegarde: "Dernière sauvegarde il y a 9 jours (plus de 7).",
+      }),
+    );
+    expect(r.recap?.lignes.map((l) => l.detail)).toEqual([
+      "intervention prévue le 01/10/2026 (depuis 4 jours)",
+      "chantier : fin prévue le 02/10/2026 (depuis 3 jours)",
+      "Dernière sauvegarde il y a 9 jours (plus de 7).",
+    ]);
+  });
+
+  it("rien de tout cela un autre jour que le récapitulatif", () => {
+    expect(calculerRappels(base({ chantiers: [], alerteSauvegarde: "x" })).recap).toBeNull();
+  });
+});

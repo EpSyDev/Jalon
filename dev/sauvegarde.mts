@@ -18,6 +18,11 @@ try {
   const fichier = join(dossier, `jalon-${sauvegarde.cree_le.slice(0, 19).replace(/[:T]/g, "-")}.json`);
   writeFileSync(fichier, JSON.stringify(sauvegarde));
   const total = Object.values(sauvegarde.tables).reduce((n, lignes) => n + lignes.length, 0);
+  // Mémorise l'export pour l'alerte « sauvegarde trop ancienne » (clé identique à metier/sauvegarde.ts).
+  await sql`
+    insert into public.parametres (cle, valeur, description)
+    values ('derniere_sauvegarde', to_jsonb(now()::text), 'Instant de la dernière sauvegarde téléchargée.')
+    on conflict (cle) do update set valeur = excluded.valeur`;
   console.log(`Sauvegarde écrite : ${fichier} (${total} lignes, schéma ${sauvegarde.migration}).`);
   console.log("À copier sur un support indépendant (réseau de l'établissement, disque chiffré).");
 } finally {

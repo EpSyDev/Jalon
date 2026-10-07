@@ -4,6 +4,7 @@ import { lireEnvRappels, type EnvRappels } from "@/lib/env";
 import { composerMail } from "@/lib/mail/composer";
 import { envoyerMail } from "@/lib/mail/envoi";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
+import { CLE_DERNIERE_SAUVEGARDE, etatSauvegarde, messageSauvegarde } from "@/lib/metier/sauvegarde";
 import {
   aEnregistrer,
   calculerRappels,
@@ -42,7 +43,7 @@ export async function executerRappels(): Promise<BilanRappels> {
         p.valeur,
       ]),
     );
-    const [plans, contrats, reserves, envoyes] = await Promise.all([
+    const [plans, contrats, reserves, envoyes, interventions, chantiers] = await Promise.all([
       tx<EntreeRappels["plans"]>`
         select plan_controle_id as id, type_libelle as libelle, coalesce(equipement_code, perimetre) as perimetre,
           prochaine_echeance as echeance, statut_echeance as statut
@@ -61,9 +62,17 @@ export async function executerRappels(): Promise<BilanRappels> {
       tx<Pick<Rappel, "cible_type" | "cible_id" | "seuil" | "echeance">[]>`
         select cible_type, cible_id, seuil, echeance from public.rappels_envoyes
         where echeance >= ${aujourdhui}::date - 400`,
+      tx<NonNullable<EntreeRappels["interventions"]>>`
+        select id, titre, statut, date_prevue from public.interventions
+        where archive_le is null and statut not in ('terminee', 'annulee') and date_prevue is not null`,
+      tx<NonNullable<EntreeRappels["chantiers"]>>`
+        select id, titre, statut, date_debut, date_fin_prevue from public.chantiers
+        where archive_le is null and statut in ('prevu', 'en_cours', 'suspendu')`,
     ]);
     const seuilsParam = parametres.get("seuils_rappel_jours");
     const seuils = normaliserSeuils(Array.isArray(seuilsParam) ? seuilsParam : []);
+    const brute = parametres.get(CLE_DERNIERE_SAUVEGARDE);
+    const derniereSauvegarde = typeof brute === "string" ? brute : null;
     const destinataires = parametres.get("destinataires_rappels");
     return {
       destinataires: Array.isArray(destinataires) ? (destinataires as string[]) : [],
@@ -74,6 +83,9 @@ export async function executerRappels(): Promise<BilanRappels> {
         plans,
         contrats,
         reserves,
+        interventions,
+        chantiers,
+        alerteSauvegarde: messageSauvegarde(etatSauvegarde(derniereSauvegarde, aujourdhui)),
         dejaEnvoyes: new Set(envoyes.map(cleRappel)),
       } satisfies EntreeRappels,
     };
