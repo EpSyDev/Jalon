@@ -59,3 +59,29 @@ describe("parc (pilote postgres)", () => {
     expect(r.tout.equipements).toHaveLength(PAR_PAGE + 30);
   });
 });
+
+describe("journal d'audit (pilote postgres)", () => {
+  it("historique d'un plan : le plan, ses contrôles et ses réserves ; rien pour un technicien", async () => {
+    const { historiqueFiche, lireJournal } = await import("@/lib/requetes/journal");
+    const [plan] = await p.sql<{ id: string }[]>`
+      select p.id from public.plans_controle p where exists (
+        select 1 from public.controles c join public.reserves r on r.controle_id = c.id where c.plan_controle_id = p.id)
+      limit 1`;
+    const admin = await enTantQueUtilisateur(p.sql, "admin", async (tx) => {
+      await tx`update public.plans_controle set periodicite_mois_surcharge = 7 where id = ${plan.id}`;
+      return { fiche: await historiqueFiche(tx, "plans_controle", plan.id), page: await lireJournal(tx, { page: 1 }) };
+    });
+    const tables = new Set(admin.fiche.entrees.map((e) => e.table_cible));
+    expect(tables).toEqual(new Set(["plans_controle", "controles", "reserves"]));
+    expect(admin.fiche.entrees[0]).toMatchObject({
+      table_cible: "plans_controle",
+      action: "update",
+      utilisateur_nom: expect.any(String),
+    });
+    expect(admin.page.total).toBeGreaterThan(0);
+    const technicien = await enTantQueUtilisateur(p.sql, "technicien", (tx) =>
+      historiqueFiche(tx, "plans_controle", plan.id),
+    );
+    expect(technicien.entrees).toEqual([]);
+  });
+});

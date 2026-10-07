@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   ClipboardCheck,
   FileText,
+  History,
   HardHat,
   Package,
   Settings,
@@ -34,6 +35,7 @@ export const MODULES: Module[] = [
   { href: "/statistiques", libelle: "Statistiques", icone: BarChart3 },
   { href: "/stocks", libelle: "Stocks", icone: Package },
   { href: "/import", libelle: "Import", icone: Upload, roles: ["admin", "technicien"] },
+  { href: "/journal", libelle: "Journal", icone: History, roles: ["admin"] },
   { href: "/parametres", libelle: "Paramètres", icone: Settings, roles: ["admin"] },
 ];
 
