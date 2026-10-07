@@ -24,6 +24,7 @@ export const LIBELLES_TABLE: Record<string, string> = {
   controles: "Contrôle",
   reserves: "Réserve",
   prestataires: "Prestataire",
+  contacts: "Contact",
   contrats: "Contrat",
   interventions: "Intervention",
   chantiers: "Chantier",
@@ -84,6 +85,8 @@ const LIBELLES_CHAMP: Record<string, string> = {
   contact_nom: "Contact",
   email: "Mail",
   telephone: "Téléphone",
+  organisation: "Organisation",
+  fonction: "Fonction",
   univers_id: "Univers",
   famille_id: "Famille",
   localisation_id: "Localisation",
@@ -237,6 +240,8 @@ export function lienEnregistrement(e: Pick<Entree, "table_cible" | "enregistreme
       return `/controles/reserves/${id}`;
     case "types_controle":
       return `/controles/types/${id}`;
+    case "contacts":
+      return `/contacts/${id}`;
     case "contrats":
       return `/contrats/${id}`;
     case "prestataires":
