@@ -11,6 +11,7 @@ export type PlanEcheance = {
   equipement_id: string | null;
   equipement_code: string | null;
   perimetre: string | null;
+  prestataire_id: string | null;
   prestataire_nom: string | null;
   periodicite_mois: number;
   dernier_controle: string | null;
@@ -23,7 +24,7 @@ export type PlanEcheance = {
 export function listerPlans(tx: Tx) {
   return tx<PlanEcheance[]>`
     select v.plan_controle_id, v.type_controle_id, v.type_libelle, v.caractere, f.libelle as famille_libelle,
-      v.equipement_id, v.equipement_code, v.perimetre, pr.nom as prestataire_nom, v.periodicite_mois,
+      v.equipement_id, v.equipement_code, v.perimetre, v.prestataire_id, pr.nom as prestataire_nom, v.periodicite_mois,
       v.dernier_controle, v.prochaine_echeance, v.statut_echeance, v.nb_reserves_ouvertes, v.nb_reserves_levees
     from public.v_plans_controle_echeance v
     join public.familles_controle f on f.id = v.famille_id
