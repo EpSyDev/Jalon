@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CheckSquare, ChevronRight, X } from "lucide-react";
 import { BadgeStatut } from "@/components/badges";
+import { MESSAGE_RESEAU } from "@/components/formulaire";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -158,7 +159,12 @@ export function ListeEquipements({
             const donnees = new FormData(ev.currentTarget);
             for (const id of selection) donnees.append("ids", id);
             demarrer(async () => {
-              const r = await modifierEquipementsEnMasse(donnees);
+              let r: Awaited<ReturnType<typeof modifierEquipementsEnMasse>>;
+              try {
+                r = await modifierEquipementsEnMasse(donnees);
+              } catch {
+                return setRetour({ erreur: MESSAGE_RESEAU });
+              }
               if (r && "erreur" in r) setRetour({ erreur: r.erreur });
               else {
                 setRetour({ message: r?.message });

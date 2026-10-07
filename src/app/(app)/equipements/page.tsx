@@ -85,7 +85,7 @@ export default async function PageEquipements({ searchParams }: PageProps<"/equi
               key={u.cle ?? "tous"}
               href={u.cle ? `/equipements?univers=${u.cle}` : "/equipements"}
               className={cn(
-                "rounded-full border bg-card px-3 py-1.5 text-sm",
+                "inline-flex min-h-11 items-center rounded-full border bg-card px-3 py-1.5 text-sm",
                 filtres.univers === u.cle && "border-foreground bg-foreground text-background",
               )}
             >

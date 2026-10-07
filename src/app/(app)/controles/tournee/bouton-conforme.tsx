@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Check } from "lucide-react";
+import { MESSAGE_RESEAU } from "@/components/formulaire";
 import { Button } from "@/components/ui/button";
 import { controleConformeAujourdhui } from "../actions";
 
@@ -38,9 +39,12 @@ export function BoutonConforme({ planId }: { planId: string }) {
         onClick={() => {
           if (!arme) return setArme(true);
           demarrer(async () => {
-            const r = await controleConformeAujourdhui(planId);
-            if (r && "erreur" in r) setEtat({ erreur: r.erreur });
-            else setEtat({ fait: true });
+            try {
+              const r = await controleConformeAujourdhui(planId);
+              setEtat(r && "erreur" in r ? { erreur: r.erreur } : { fait: true });
+            } catch {
+              setEtat({ erreur: MESSAGE_RESEAU });
+            }
             setArme(false);
           });
         }}

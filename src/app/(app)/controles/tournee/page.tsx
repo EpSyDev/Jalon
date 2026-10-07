@@ -46,7 +46,10 @@ export default async function PageTournee({ searchParams }: PageProps<"/controle
           <Link
             key={cle}
             href={cle === "tous" ? "/controles/tournee" : `/controles/tournee?caractere=${cle}`}
-            className={cn("rounded-full border px-3 py-1.5 text-sm", filtre === cle && "bg-foreground text-background")}
+            className={cn(
+              "inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
+              filtre === cle && "bg-foreground text-background",
+            )}
           >
             {libelle}
           </Link>

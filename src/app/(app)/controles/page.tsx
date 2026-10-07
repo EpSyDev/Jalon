@@ -59,7 +59,7 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
         <Link
           href="/controles"
           className={cn(
-            "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+            "shrink-0 inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
             !statutActif && "bg-foreground text-background",
           )}
         >
@@ -70,7 +70,7 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
             key={s}
             href={`/controles?statut=${s}`}
             className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+              "shrink-0 inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
               statutActif === s && "bg-foreground text-background",
             )}
           >

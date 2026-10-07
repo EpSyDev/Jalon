@@ -50,7 +50,7 @@ export default async function PageInterventions({ searchParams }: PageProps<"/in
             key={v.cle}
             href={v.cle === "ouvertes" ? "/interventions" : `/interventions?vue=${v.cle}`}
             className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+              "shrink-0 inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
               vue === v.cle && "bg-foreground text-background",
             )}
           >
