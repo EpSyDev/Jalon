@@ -1,12 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { exigerPremierFacteur } from "@/lib/auth";
+import { cheminSur } from "@/lib/metier/parc";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 import { seDeconnecter } from "../actions";
 import { FormulaireCode2fa } from "../formulaires";
 
 export const metadata = { title: "Double authentification — Jalon" };
 
-export default async function PageDoubleAuthentification() {
+export default async function PageDoubleAuthentification({ searchParams }: PageProps<"/connexion/2fa">) {
+  const suite = cheminSur((await searchParams).suite);
   await exigerPremierFacteur();
   const supabase = await creerClientSupabase();
   const { data: facteurs } = await supabase.auth.mfa.listFactors();
@@ -50,7 +52,7 @@ export default async function PageDoubleAuthentification() {
               </p>
             </div>
           )}
-          <FormulaireCode2fa factorId={enrolement?.factorId ?? verifie!.id} />
+          <FormulaireCode2fa factorId={enrolement?.factorId ?? verifie!.id} suite={suite} />
           <form action={seDeconnecter}>
             <button type="submit" className="w-full text-sm text-muted-foreground underline">
               Se déconnecter

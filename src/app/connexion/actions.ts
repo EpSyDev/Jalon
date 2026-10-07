@@ -3,13 +3,17 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { exigerPremierFacteur } from "@/lib/auth";
 import { sqlBrut } from "@/lib/db";
 import { lireEnv } from "@/lib/env";
+import { adresseIp, limiteAtteinte, noterEchec, type Cle } from "@/lib/limitation";
 import { cheminSur } from "@/lib/metier/parc";
 import { COOKIE_SESSION_LOCALE, signerSession } from "@/lib/session-locale";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 
 export type EtatFormulaire = { erreur: string | null };
+
+const TROP_DE_TENTATIVES = "Trop de tentatives. Patientez 15 minutes avant de réessayer.";
 
 const schemaConnexion = z.object({
   email: z.email().max(254),
@@ -19,6 +23,12 @@ const schemaConnexion = z.object({
 export async function seConnecter(_: EtatFormulaire, formData: FormData): Promise<EtatFormulaire> {
   const saisie = schemaConnexion.safeParse({ email: formData.get("email"), motDePasse: formData.get("motDePasse") });
   if (!saisie.success) return { erreur: "Adresse mail ou mot de passe invalide." };
+
+  const cles: Cle[] = [
+    { nature: "email", valeur: saisie.data.email },
+    { nature: "ip", valeur: await adresseIp() },
+  ];
+  if (await limiteAtteinte(cles)) return { erreur: TROP_DE_TENTATIVES };
 
   const supabase = await creerClientSupabase();
   const { error } = await supabase.auth.signInWithPassword({
@@ -39,6 +49,7 @@ export async function seConnecter(_: EtatFormulaire, formData: FormData): Promis
       return { erreur: "Service d'authentification indisponible ou mal configuré. Contactez l'administrateur." };
     }
     // Message volontairement générique pour le reste : ne pas révéler si le compte existe.
+    await noterEchec(cles);
     return { erreur: "Identifiants incorrects ou trop de tentatives. Réessayez." };
   }
   redirect(cheminSur(formData.get("suite")));
@@ -53,10 +64,17 @@ export async function validerCode2fa(_: EtatFormulaire, formData: FormData): Pro
   const saisie = schemaCode.safeParse({ factorId: formData.get("factorId"), code: formData.get("code") });
   if (!saisie.success) return { erreur: "Le code doit contenir 6 chiffres." };
 
+  const utilisateur = await exigerPremierFacteur();
+  const cles: Cle[] = [{ nature: "code2fa", valeur: utilisateur.id }];
+  if (await limiteAtteinte(cles)) return { erreur: TROP_DE_TENTATIVES };
+
   const supabase = await creerClientSupabase();
   const { error } = await supabase.auth.mfa.challengeAndVerify(saisie.data);
-  if (error) return { erreur: "Code incorrect ou expiré." };
-  redirect("/");
+  if (error) {
+    await noterEchec(cles);
+    return { erreur: "Code incorrect ou expiré." };
+  }
+  redirect(cheminSur(formData.get("suite")));
 }
 
 export async function seDeconnecter() {

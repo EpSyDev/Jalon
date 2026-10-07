@@ -33,6 +33,8 @@ export async function proxy(request: NextRequest) {
   const entetes = new Headers(request.headers);
   entetes.set("x-nonce", nonce);
   entetes.set("Content-Security-Policy", csp);
+  // Page demandée : permet de revenir au bon endroit après la double authentification (scan d'un QR code).
+  entetes.set("x-chemin", request.nextUrl.pathname + request.nextUrl.search);
 
   let reponse = NextResponse.next({ request: { headers: entetes } });
 

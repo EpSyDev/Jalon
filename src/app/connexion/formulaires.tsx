@@ -45,11 +45,12 @@ export function FormulaireConnexion({ suite }: { suite: string }) {
   );
 }
 
-export function FormulaireCode2fa({ factorId }: { factorId: string }) {
+export function FormulaireCode2fa({ factorId, suite }: { factorId: string; suite: string }) {
   const [etat, action, enCours] = useActionState(validerCode2fa, ETAT_INITIAL);
   return (
     <form action={action} className="grid gap-4">
       <input type="hidden" name="factorId" value={factorId} />
+      <input type="hidden" name="suite" value={suite} />
       <div className="grid gap-2">
         <Label htmlFor="code">Code à 6 chiffres</Label>
         <Input
