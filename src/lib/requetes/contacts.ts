@@ -39,3 +39,22 @@ export function optionsPrestataires(tx: Tx) {
   return tx<{ id: string; libelle: string }[]>`
     select id, nom as libelle from public.prestataires where archive_le is null order by nom`;
 }
+
+/**
+ * Crée le contact d'un prestataire à partir de ses coordonnées, s'il en a et si aucun contact actif ne lui est
+ * encore lié. Doublon voulu : l'annuaire vit ensuite séparément de la fiche prestataire.
+ */
+export async function contactDepuisPrestataire(
+  tx: Tx,
+  prestataireId: string,
+  p: { nom: string; contact_nom: string | null; email: string | null; telephone: string | null },
+): Promise<boolean> {
+  if (!p.contact_nom && !p.email && !p.telephone) return false;
+  const [existant] = await tx`
+    select 1 from public.contacts where prestataire_id = ${prestataireId} and archive_le is null limit 1`;
+  if (existant) return false;
+  await tx`
+    insert into public.contacts (nom, organisation, telephone, email, prestataire_id)
+    values (${p.contact_nom ?? p.nom}, ${p.nom}, ${p.telephone}, ${p.email}, ${prestataireId})`;
+  return true;
+}

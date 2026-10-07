@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { contactDepuisPrestataire } from "@/lib/requetes/contacts";
 import { redirect } from "next/navigation";
 import { ADMIN, executer, ID_INVALIDE, idsValides, RefusMetier, valider, type Resultat } from "@/lib/actions";
 import { schemaContrat, schemaPrestataire } from "@/lib/metier/contrats";
@@ -36,6 +37,7 @@ export async function creerPrestataire(formData: FormData): Promise<Resultat> {
       where archive_le is null and public.normaliser(nom) = public.normaliser(${donnees.nom})`;
     if (doublon) throw new RefusMetier("Un prestataire porte déjà ce nom.");
     [{ id }] = await tx<{ id: string }[]>`insert into public.prestataires ${tx(donnees)} returning id`;
+    await contactDepuisPrestataire(tx, id, donnees);
   });
   if (echec) return { erreur: echec };
   rafraichir();
@@ -46,7 +48,11 @@ export async function modifierPrestataire(id: string, formData: FormData): Promi
   if (!idsValides(id)) return ID_INVALIDE;
   const { ok, donnees, erreur } = valider(schemaPrestataire, formData, LIBELLES);
   if (!ok) return { erreur };
-  const echec = await executer((tx) => tx`update public.prestataires set ${tx(donnees)} where id = ${id}`);
+  const echec = await executer(async (tx) => {
+    await tx`update public.prestataires set ${tx(donnees)} where id = ${id}`;
+    // Coordonnées ajoutées après coup : le contact apparaît dans l'annuaire s'il n'y est pas déjà.
+    await contactDepuisPrestataire(tx, id, donnees);
+  });
   if (echec) return { erreur: echec };
   rafraichir();
   redirect(`/prestataires/${id}`);
