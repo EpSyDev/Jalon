@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CarteConnexion } from "../carte";
 import { exigerPremierFacteur } from "@/lib/auth";
 import { cheminSur } from "@/lib/metier/parc";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
@@ -26,40 +26,35 @@ export default async function PageDoubleAuthentification({ searchParams }: PageP
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle className="text-xl">Double authentification</CardTitle>
-          <CardDescription>
-            {enrolement
-              ? "Obligatoire pour les administrateurs. Scannez ce QR code avec votre application d'authentification, puis saisissez le code affiché."
-              : "Saisissez le code affiché par votre application d'authentification."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          {enrolement && (
-            <div className="grid justify-items-center gap-2">
-              {/* eslint-disable-next-line @next/next/no-img-element -- QR code SVG fourni par Supabase en data URI */}
-              <img
-                src={enrolement.qrCode}
-                alt="QR code de configuration"
-                width={200}
-                height={200}
-                className="rounded bg-white p-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                Clé manuelle : <code className="break-all">{enrolement.secret}</code>
-              </p>
-            </div>
-          )}
-          <FormulaireCode2fa factorId={enrolement?.factorId ?? verifie!.id} suite={suite} />
-          <form action={seDeconnecter}>
-            <button type="submit" className="w-full text-sm text-muted-foreground underline">
-              Se déconnecter
-            </button>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
+    <CarteConnexion
+      titre="Double authentification"
+      description={
+        enrolement
+          ? "Obligatoire pour les administrateurs. Scannez ce QR code avec votre application d'authentification, puis saisissez le code affiché."
+          : "Saisissez le code affiché par votre application d'authentification."
+      }
+    >
+      {enrolement && (
+        <div className="grid justify-items-center gap-2">
+          {/* eslint-disable-next-line @next/next/no-img-element -- QR code SVG fourni par Supabase en data URI */}
+          <img
+            src={enrolement.qrCode}
+            alt="QR code de configuration"
+            width={200}
+            height={200}
+            className="rounded bg-white p-2"
+          />
+          <p className="text-xs text-muted-foreground">
+            Clé manuelle : <code className="break-all">{enrolement.secret}</code>
+          </p>
+        </div>
+      )}
+      <FormulaireCode2fa factorId={enrolement?.factorId ?? verifie!.id} suite={suite} />
+      <form action={seDeconnecter}>
+        <button type="submit" className="w-full text-sm text-muted-foreground underline">
+          Se déconnecter
+        </button>
+      </form>
+    </CarteConnexion>
   );
 }

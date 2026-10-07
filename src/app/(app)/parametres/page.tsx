@@ -111,7 +111,8 @@ export default async function PageParametres() {
       <section className="grid gap-4 rounded-lg border bg-card p-4">
         <h2 className="text-lg font-semibold">Utilisateurs</h2>
         <p className="text-sm text-muted-foreground">
-          Les comptes sont créés par invitation depuis Supabase ; un nouveau compte a le rôle « Lecture seule ».
+          Les comptes sont créés par invitation depuis Supabase (Authentication → Users → Invite user) : le mail mène à
+          la page où la personne choisit son mot de passe. Un nouveau compte a le rôle « Lecture seule ».
         </p>
         <ul className="grid gap-3">
           {profils.map((p) => (
