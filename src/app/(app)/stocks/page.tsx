@@ -35,7 +35,10 @@ export default async function PageStocks({ searchParams }: PageProps<"/stocks">)
           <Link
             key={f.href}
             href={f.href}
-            className={cn("rounded-full border px-3 py-1.5 text-sm", f.actif && "bg-foreground text-background")}
+            className={cn(
+              "inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
+              f.actif && "bg-foreground text-background",
+            )}
           >
             {f.libelle}
           </Link>

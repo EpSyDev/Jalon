@@ -127,3 +127,13 @@ describe("DATABASE_URL sans schéma", () => {
     expect(nettoyerVariable("DATABASE_URL", url)).toBe(url);
   });
 });
+
+describe("limitation des tentatives : empreintes", () => {
+  it("ne contient ni l'adresse ni l'IP, insensible à la casse, distincte selon la nature", async () => {
+    const { empreinte } = await import("@/lib/limitation");
+    const a = empreinte({ nature: "email", valeur: "Jean.Dupont@exemple.fr " });
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
+    expect(a).toBe(empreinte({ nature: "email", valeur: "jean.dupont@exemple.fr" }));
+    expect(a).not.toBe(empreinte({ nature: "ip", valeur: "jean.dupont@exemple.fr" }));
+  });
+});

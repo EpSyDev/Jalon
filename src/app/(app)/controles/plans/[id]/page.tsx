@@ -10,6 +10,8 @@ import { formaterDate, LIBELLES_CARACTERE, LIBELLES_GRAVITE, LIBELLES_RESULTAT }
 import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { historiqueControles, lirePlan, reservesDuPlan } from "@/lib/requetes/controles";
 import { archiverControle, leverReserve, rouvrirReserve } from "../../actions";
+import { HistoriqueFiche } from "@/components/journal";
+import { HISTORIQUE_VIDE, historiqueFiche } from "@/lib/requetes/journal";
 
 export const metadata = { title: "Plan de contrôle — Jalon" };
 
@@ -29,12 +31,16 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
   const donnees = await requete(async (tx, u) => {
     const plan = await lirePlan(tx, id);
     if (!plan) return null;
-    const [controles, reserves] = await Promise.all([historiqueControles(tx, id), reservesDuPlan(tx, id)]);
-    return { plan, controles, reserves, role: u.role };
+    const [controles, reserves, journal] = await Promise.all([
+      historiqueControles(tx, id),
+      reservesDuPlan(tx, id),
+      u.role === "admin" ? historiqueFiche(tx, "plans_controle", id) : HISTORIQUE_VIDE,
+    ]);
+    return { plan, controles, reserves, journal, role: u.role };
   });
   if (!donnees) notFound();
 
-  const { plan, controles, reserves, role } = donnees;
+  const { plan, controles, reserves, journal, role } = donnees;
   const peutEcrire = role !== "lecture";
   const aujourdhui = aujourdhuiParis();
   const ouvertes = reserves.filter((r) => r.statut === "ouverte");
@@ -184,6 +190,8 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
           ))}
         </ol>
       </section>
+
+      <HistoriqueFiche entrees={journal.entrees} noms={journal.noms} table="plans_controle" />
     </div>
   );
 }

@@ -9,6 +9,8 @@ import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_RESULTAT } from "@/lib/format";
 import { ficheEquipement, lireEquipement } from "@/lib/requetes/parc";
 import { LIBELLES_STATUT_EQUIPEMENT } from "../champs-equipement";
+import { HistoriqueFiche } from "@/components/journal";
+import { HISTORIQUE_VIDE, historiqueFiche } from "@/lib/requetes/journal";
 
 export const metadata = { title: "Équipement — Jalon" };
 
@@ -34,10 +36,12 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
   if (!z.uuid().safeParse(id).success) notFound();
   const donnees = await requete(async (tx, u) => {
     const equipement = await lireEquipement(tx, id);
-    return equipement ? { equipement, ...(await ficheEquipement(tx, id)), role: u.role } : null;
+    if (!equipement) return null;
+    const journal = u.role === "admin" ? await historiqueFiche(tx, "equipements", id) : HISTORIQUE_VIDE;
+    return { equipement, ...(await ficheEquipement(tx, id)), journal, role: u.role };
   });
   if (!donnees) notFound();
-  const { equipement: e, plans, controles, interventions, role } = donnees;
+  const { equipement: e, plans, controles, interventions, journal, role } = donnees;
   const peutEcrire = role !== "lecture";
 
   return (
@@ -168,6 +172,8 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
           ))}
         </ol>
       </section>
+
+      <HistoriqueFiche entrees={journal.entrees} noms={journal.noms} table="equipements" />
     </div>
   );
 }

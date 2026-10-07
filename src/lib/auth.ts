@@ -1,9 +1,10 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { avecUtilisateur, type Identite, type Tx } from "@/lib/db";
 import { lireEnv } from "@/lib/env";
+import { cheminSur } from "@/lib/metier/parc";
 import type { Role } from "@/lib/roles";
 import { COOKIE_SESSION_LOCALE, verifierSession } from "@/lib/session-locale";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
@@ -23,12 +24,20 @@ async function lireIdentite(): Promise<Session> {
   const supabase = await creerClientSupabase();
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return { identite: null, doitValider2fa: false };
+  // Niveau courant : lu dans le jeton dont la signature vient d'être vérifiée (c'est lui qui va à la base).
+  const enAal2 = data.claims.aal === "aal2";
+  // Niveau attendu : aal2 dès qu'un facteur est vérifié sur le compte.
   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  const enAal2 = aal?.currentLevel === "aal2";
   return {
     identite: { id: data.claims.sub, aal: enAal2 ? "aal2" : "aal1" },
     doitValider2fa: !enAal2 && aal?.nextLevel === "aal2",
   };
+}
+
+/** Page demandée (posée par le proxy), pour y revenir après la connexion ou la 2FA. */
+async function suiteCourante(): Promise<string> {
+  const chemin = cheminSur((await headers()).get("x-chemin"));
+  return chemin === "/" ? "" : `?suite=${encodeURIComponent(chemin)}`;
 }
 
 const lireSession = cache(async () => {
@@ -50,8 +59,8 @@ const lireSession = cache(async () => {
 /** Exige un utilisateur connecté (et 2FA si requise). Redirige sinon. */
 export async function exigerUtilisateur(rolesAutorises?: Role[]): Promise<Utilisateur> {
   const { utilisateur, doitValider2fa } = await lireSession();
-  if (!utilisateur) redirect("/connexion");
-  if (doitValider2fa) redirect("/connexion/2fa");
+  if (!utilisateur) redirect(`/connexion${await suiteCourante()}`);
+  if (doitValider2fa) redirect(`/connexion/2fa${await suiteCourante()}`);
   if (rolesAutorises && !rolesAutorises.includes(utilisateur.role)) redirect("/");
   return utilisateur;
 }

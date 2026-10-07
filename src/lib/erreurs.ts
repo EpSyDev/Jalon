@@ -13,6 +13,8 @@ export function messageErreurBase(e: unknown): string {
   const metier = MESSAGES_METIER.find((m) => message.includes(m));
   if (metier) return metier;
   if (message.startsWith("Stock insuffisant")) return message;
+  // Trigger refuser_date_future : « La date (levée) ne peut pas être dans le futur. »
+  if (/^La date \([^)]{1,40}\) ne peut pas être dans le futur\.$/.test(message)) return message;
   switch (code) {
     case "42501":
       return "Action non autorisée pour votre rôle.";

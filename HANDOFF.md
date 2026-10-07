@@ -35,9 +35,9 @@ Qualité : 200 tests Vitest verts (unitaires + base PGlite), typage, lint, build
 ## 5. Reste à faire (par ordre)
 
 1. **Nico** : révoquer le jeton Supabase ; configurer Resend (domaine, région UE) ; obtenir le feu vert écrit de la DSI avant toute donnée réelle.
-2. **Tâche d'audit** : `TACHE-AUDIT-NUIT.md` n'a **jamais été exécutée**. Elle se lance dans une session neuve (branche `audit-nuit`, jamais sur `main`).
-3. **Parc** : colonne « Univers » dans l'import (création automatique) ; action groupée pour déplacer plusieurs équipements d'un univers ou d'une localisation à l'autre ; les équipements existants n'ont pas d'univers.
-4. Idées gardées de côté (fonctions pratiques) : validation « Fait » directe depuis « Aujourd'hui », photos (nécessite l'accord DSI), flux iCal des échéances, installation en PWA, rappels par rôle, réserve → intervention en un clic, page du journal d'audit.
+2. **Audit exécuté le 07/10/2026** sur la branche `audit-nuit` (pull request ouverte, non fusionnée) : lire `AUDIT.md`. Avant de fusionner : appliquer les migrations `20261007000100` et `20261007000200` en production (§5 de l'audit), poser les modèles de mail Supabase, puis tester les parcours réels (§6).
+3. **Parc** : colonne « Univers » à l'import et action groupée faites sur `audit-nuit` ; reste à rattacher les équipements existants (sélection sur la liste du parc).
+4. Idées gardées de côté (fonctions pratiques) : validation « Fait » directe depuis « Aujourd'hui », photos (nécessite l'accord DSI), flux iCal des échéances, installation en PWA, rappels par rôle, réserve → intervention en un clic. Décisions ouvertes : `AUDIT.md` §4.
 5. Tests non faits : parcours 2FA réel, tests Playwright automatisés (prévus au briefing, jamais écrits).
 
 ## 6. Décisions à faire valider par Nico (proposées, notées au briefing)

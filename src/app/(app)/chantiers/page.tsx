@@ -38,7 +38,10 @@ export default async function PageChantiers({ searchParams }: PageProps<"/chanti
           <Link
             key={v.href}
             href={v.href}
-            className={cn("rounded-full border px-3 py-1.5 text-sm", v.actif && "bg-foreground text-background")}
+            className={cn(
+              "inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
+              v.actif && "bg-foreground text-background",
+            )}
           >
             {v.libelle}
           </Link>

@@ -112,6 +112,16 @@ const schemaRappels = z
 
 export type EnvRappels = z.infer<typeof schemaRappels>;
 
+/**
+ * Secret du cron seul : la route doit pouvoir authentifier l'appel (et toucher la base, ce qui évite la mise
+ * en pause de Supabase) même quand les mails ne sont pas encore configurés.
+ */
+export function lireSecretCron(): string {
+  const secret = lire("CRON_SECRET");
+  if (!secret || secret.length < 32) throw new Error("CRON_SECRET absent ou trop court (32 caractères minimum).");
+  return secret;
+}
+
 export function lireEnvRappels(): EnvRappels {
   const saisie = schemaRappels.safeParse({
     CRON_SECRET: lire("CRON_SECRET"),

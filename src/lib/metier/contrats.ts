@@ -3,6 +3,7 @@
 
 import { addDays, format, parseISO } from "date-fns";
 import { z } from "zod";
+import { dateOptionnelle, texteOptionnel } from "./saisie";
 
 export type AlerteContrat = "echu" | "preavis_depasse" | "a_decider";
 
@@ -28,21 +29,6 @@ export function alerteContrat(
 }
 
 // --- Saisie : prestataires et contrats ------------------------------------------
-
-const texteOptionnel = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${max} caractères maximum`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable()
-    .default(null);
-
-const dateOptionnelle = z
-  .union([z.iso.date("date invalide"), z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
 
 export const schemaPrestataire = z.object({
   nom: z.string().trim().min(1, "obligatoire").max(200, "200 caractères maximum"),

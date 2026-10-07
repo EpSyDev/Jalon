@@ -3,13 +3,21 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { exigerPremierFacteur, exigerUtilisateur } from "@/lib/auth";
 import { sqlBrut } from "@/lib/db";
 import { lireEnv } from "@/lib/env";
+import { adresseIp, limiteAtteinte, noterEchec, type Cle } from "@/lib/limitation";
+import { messageMotDePasse, schemaLien, schemaMotDePasse } from "@/lib/metier/comptes";
 import { cheminSur } from "@/lib/metier/parc";
 import { COOKIE_SESSION_LOCALE, signerSession } from "@/lib/session-locale";
 import { creerClientSupabase } from "@/lib/supabase/serveur";
 
-export type EtatFormulaire = { erreur: string | null };
+export type EtatFormulaire = { erreur: string | null; message?: string };
+
+const ENVOI_REINITIALISATION =
+  "Si un compte existe pour cette adresse, un mail vient de partir : ouvrez le lien qu'il contient.";
+
+const TROP_DE_TENTATIVES = "Trop de tentatives. Patientez 15 minutes avant de réessayer.";
 
 const schemaConnexion = z.object({
   email: z.email().max(254),
@@ -19,6 +27,12 @@ const schemaConnexion = z.object({
 export async function seConnecter(_: EtatFormulaire, formData: FormData): Promise<EtatFormulaire> {
   const saisie = schemaConnexion.safeParse({ email: formData.get("email"), motDePasse: formData.get("motDePasse") });
   if (!saisie.success) return { erreur: "Adresse mail ou mot de passe invalide." };
+
+  const cles: Cle[] = [
+    { nature: "email", valeur: saisie.data.email },
+    { nature: "ip", valeur: await adresseIp() },
+  ];
+  if (await limiteAtteinte(cles)) return { erreur: TROP_DE_TENTATIVES };
 
   const supabase = await creerClientSupabase();
   const { error } = await supabase.auth.signInWithPassword({
@@ -39,6 +53,7 @@ export async function seConnecter(_: EtatFormulaire, formData: FormData): Promis
       return { erreur: "Service d'authentification indisponible ou mal configuré. Contactez l'administrateur." };
     }
     // Message volontairement générique pour le reste : ne pas révéler si le compte existe.
+    await noterEchec(cles);
     return { erreur: "Identifiants incorrects ou trop de tentatives. Réessayez." };
   }
   redirect(cheminSur(formData.get("suite")));
@@ -53,10 +68,17 @@ export async function validerCode2fa(_: EtatFormulaire, formData: FormData): Pro
   const saisie = schemaCode.safeParse({ factorId: formData.get("factorId"), code: formData.get("code") });
   if (!saisie.success) return { erreur: "Le code doit contenir 6 chiffres." };
 
+  const utilisateur = await exigerPremierFacteur();
+  const cles: Cle[] = [{ nature: "code2fa", valeur: utilisateur.id }];
+  if (await limiteAtteinte(cles)) return { erreur: TROP_DE_TENTATIVES };
+
   const supabase = await creerClientSupabase();
   const { error } = await supabase.auth.mfa.challengeAndVerify(saisie.data);
-  if (error) return { erreur: "Code incorrect ou expiré." };
-  redirect("/");
+  if (error) {
+    await noterEchec(cles);
+    return { erreur: "Code incorrect ou expiré." };
+  }
+  redirect(cheminSur(formData.get("suite")));
 }
 
 export async function seDeconnecter() {
@@ -82,4 +104,60 @@ export async function connexionLocale(formData: FormData) {
     path: "/",
   });
   redirect(cheminSur(formData.get("suite")));
+}
+
+// --- Lien reçu par mail, mot de passe oublié, choix du mot de passe (mode supabase) -------------------
+
+/**
+ * Lien d'invitation ou de réinitialisation : vérifié sur un clic explicite (POST), jamais à l'ouverture de la
+ * page, pour que les analyseurs de liens des messageries (Outlook, antivirus) ne consomment pas le lien.
+ */
+export async function ouvrirLien(_: EtatFormulaire, formData: FormData): Promise<EtatFormulaire> {
+  if (lireEnv().AUTH_MODE !== "supabase") return { erreur: "Sans objet en mode local." };
+  const saisie = schemaLien.safeParse({ token_hash: formData.get("token_hash"), type: formData.get("type") });
+  if (!saisie.success) return { erreur: "Lien incomplet : copiez-le en entier depuis le mail." };
+  const supabase = await creerClientSupabase();
+  const { error } = await supabase.auth.verifyOtp(saisie.data);
+  if (error) {
+    console.error(`Lien refusé : statut=${error.status ?? "?"} code=${error.code ?? "?"}`);
+    return { erreur: "Lien expiré ou déjà utilisé. Demandez-en un nouveau (« Mot de passe oublié »)." };
+  }
+  redirect("/connexion/mot-de-passe");
+}
+
+/** Réponse identique que le compte existe ou non. */
+export async function demanderReinitialisation(_: EtatFormulaire, formData: FormData): Promise<EtatFormulaire> {
+  if (lireEnv().AUTH_MODE !== "supabase") return { erreur: "Sans objet en mode local." };
+  const email = z.email().max(254).safeParse(formData.get("email"));
+  if (!email.success) return { erreur: "Adresse mail invalide." };
+  const cles: Cle[] = [
+    { nature: "oubli", valeur: email.data },
+    { nature: "oubli", valeur: await adresseIp() },
+  ];
+  if (await limiteAtteinte(cles)) return { erreur: "Trop de demandes. Patientez une heure avant de réessayer." };
+  await noterEchec(cles);
+  const supabase = await creerClientSupabase();
+  const { error } = await supabase.auth.resetPasswordForEmail(email.data);
+  if (error) console.error(`Réinitialisation : statut=${error.status ?? "?"} code=${error.code ?? "?"}`);
+  return { erreur: null, message: ENVOI_REINITIALISATION };
+}
+
+export async function definirMotDePasse(_: EtatFormulaire, formData: FormData): Promise<EtatFormulaire> {
+  if (lireEnv().AUTH_MODE !== "supabase") return { erreur: "Sans objet en mode local." };
+  await exigerUtilisateur();
+  const saisie = schemaMotDePasse.safeParse({
+    motDePasse: formData.get("motDePasse"),
+    confirmation: formData.get("confirmation"),
+  });
+  if (!saisie.success) {
+    const issue = saisie.error.issues[0];
+    return { erreur: `${issue.path[0] === "confirmation" ? "Confirmation" : "Mot de passe"} : ${issue.message}.` };
+  }
+  const supabase = await creerClientSupabase();
+  const { error } = await supabase.auth.updateUser({ password: saisie.data.motDePasse });
+  if (error) {
+    console.error(`Mot de passe refusé : statut=${error.status ?? "?"} code=${error.code ?? "?"}`);
+    return { erreur: messageMotDePasse(error.code) };
+  }
+  return { erreur: null, message: "Mot de passe enregistré. Il servira à vos prochaines connexions." };
 }

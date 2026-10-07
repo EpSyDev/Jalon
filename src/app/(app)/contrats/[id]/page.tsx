@@ -8,6 +8,8 @@ import { formaterDate } from "@/lib/format";
 import { alerteContrat, limitePreavis } from "@/lib/metier/contrats";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { lireContrat, plansDuContrat, seuilAEcheance } from "@/lib/requetes/contrats";
+import { HistoriqueFiche } from "@/components/journal";
+import { HISTORIQUE_VIDE, historiqueFiche } from "@/lib/requetes/journal";
 
 export const metadata = { title: "Contrat — Jalon" };
 
@@ -28,10 +30,16 @@ export default async function PageContrat({ params }: PageProps<"/contrats/[id]"
   const donnees = await requete(async (tx, u) => {
     const contrat = await lireContrat(tx, id);
     if (!contrat) return null;
-    return { contrat, plans: await plansDuContrat(tx, id), seuil: await seuilAEcheance(tx), role: u.role };
+    return {
+      contrat,
+      plans: await plansDuContrat(tx, id),
+      seuil: await seuilAEcheance(tx),
+      journal: u.role === "admin" ? await historiqueFiche(tx, "contrats", id) : HISTORIQUE_VIDE,
+      role: u.role,
+    };
   });
   if (!donnees) notFound();
-  const { contrat: c, plans, seuil, role } = donnees;
+  const { contrat: c, plans, seuil, journal, role } = donnees;
   const alerte = alerteContrat(c, aujourdhuiParis(), seuil);
 
   return (
@@ -101,6 +109,8 @@ export default async function PageContrat({ params }: PageProps<"/contrats/[id]"
           ))}
         </ul>
       </section>
+
+      <HistoriqueFiche entrees={journal.entrees} noms={journal.noms} table="contrats" />
     </div>
   );
 }

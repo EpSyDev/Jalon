@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cheminSur, schemaEquipement, statutLePlusUrgent } from "@/lib/metier/parc";
+import { cheminSur, schemaEquipement, schemaModificationGroupee, statutLePlusUrgent } from "@/lib/metier/parc";
 
 describe("schemaEquipement", () => {
   const base = { code: "TGBT-A", libelle: "Tableau", statut: "en_service" };
@@ -45,5 +45,28 @@ describe("cheminSur (redirection après connexion)", () => {
     [null, "/"],
   ])("%s → %s", (entree, attendu) => {
     expect(cheminSur(entree)).toBe(attendu);
+  });
+});
+
+describe("modification groupée", () => {
+  const ID = "00000000-0000-4000-a000-0000000000aa";
+  const U = "00000000-0000-4000-a000-0000000000bb";
+
+  it("n'écrit que les champs modifiés ; « aucun » retire le rattachement", () => {
+    expect(schemaModificationGroupee.parse({ ids: [ID, ID], univers_id: U, localisation_id: "", statut: "" })).toEqual({
+      ids: [ID],
+      modifications: { univers_id: U },
+    });
+    expect(schemaModificationGroupee.parse({ ids: [ID], localisation_id: "aucun", statut: "reforme" })).toEqual({
+      ids: [ID],
+      modifications: { localisation_id: null, statut: "reforme" },
+    });
+  });
+
+  it("refuse une sélection vide, une modification vide ou une valeur inconnue", () => {
+    expect(schemaModificationGroupee.safeParse({ ids: [], univers_id: U }).success).toBe(false);
+    expect(schemaModificationGroupee.safeParse({ ids: [ID] }).success).toBe(false);
+    expect(schemaModificationGroupee.safeParse({ ids: [ID], statut: "detruit" }).success).toBe(false);
+    expect(schemaModificationGroupee.safeParse({ ids: ["1; drop table"], univers_id: U }).success).toBe(false);
   });
 });

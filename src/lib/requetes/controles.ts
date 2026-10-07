@@ -11,6 +11,7 @@ export type PlanEcheance = {
   equipement_id: string | null;
   equipement_code: string | null;
   perimetre: string | null;
+  prestataire_id: string | null;
   prestataire_nom: string | null;
   periodicite_mois: number;
   dernier_controle: string | null;
@@ -23,7 +24,7 @@ export type PlanEcheance = {
 export function listerPlans(tx: Tx) {
   return tx<PlanEcheance[]>`
     select v.plan_controle_id, v.type_controle_id, v.type_libelle, v.caractere, f.libelle as famille_libelle,
-      v.equipement_id, v.equipement_code, v.perimetre, pr.nom as prestataire_nom, v.periodicite_mois,
+      v.equipement_id, v.equipement_code, v.perimetre, v.prestataire_id, pr.nom as prestataire_nom, v.periodicite_mois,
       v.dernier_controle, v.prochaine_echeance, v.statut_echeance, v.nb_reserves_ouvertes, v.nb_reserves_levees
     from public.v_plans_controle_echeance v
     join public.familles_controle f on f.id = v.famille_id
@@ -180,4 +181,29 @@ export async function optionsPlan(tx: Tx) {
       where c.archive_le is null order by 2`,
   ]);
   return { types, equipements, prestataires, contrats };
+}
+
+export type PlanTournee = {
+  plan_controle_id: string;
+  type_libelle: string;
+  caractere: PlanEcheance["caractere"];
+  statut_echeance: StatutEcheance;
+  prochaine_echeance: string | null;
+  equipement_code: string | null;
+  perimetre: string | null;
+  localisation_id: string | null;
+  localisation: string | null;
+};
+
+/** Contrôles à faire (tout sauf « à jour »), dans l'ordre des locaux : bâtiment, niveau, local. */
+export function plansTournee(tx: Tx) {
+  return tx<PlanTournee[]>`
+    select v.plan_controle_id, v.type_libelle, v.caractere, v.statut_echeance, v.prochaine_echeance,
+      v.equipement_code, v.perimetre, l.id as localisation_id, l.libelle_complet as localisation
+    from public.v_plans_controle_echeance v
+    left join public.equipements e on e.id = v.equipement_id
+    left join public.localisations l on l.id = e.localisation_id
+    where v.statut_echeance <> 'a_jour'
+    order by l.batiment nulls last, l.niveau nulls first, l.local nulls first, v.prochaine_echeance nulls first,
+      v.type_libelle`;
 }

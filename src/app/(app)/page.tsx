@@ -2,16 +2,19 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { fr } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
-import { CircleCheck } from "lucide-react";
+import { ArrowRight, CircleCheck, Users } from "lucide-react";
 import { messageAlerteContrat } from "@/components/alerte-contrat";
 import { BadgeReserves } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
+import { lireEnvRappels } from "@/lib/env";
+import { jalonDuJour, regroupements, type JalonDuJour, type Regroupement } from "@/lib/metier/aujourdhui";
 import { formaterDate, LIBELLES_GRAVITE } from "@/lib/format";
 import { alerteContrat, type AlerteContrat } from "@/lib/metier/contrats";
 import { aujourdhuiParis, FUSEAU } from "@/lib/metier/echeance";
 import { donneesAujourdhui, type ContratSuivi, type ReserveOuverte } from "@/lib/requetes/aujourdhui";
 import type { PlanEcheance } from "@/lib/requetes/controles";
+import { verifications } from "@/lib/requetes/verifications";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Aujourd'hui — Jalon" };
@@ -92,12 +95,85 @@ function LigneReserve({ reserve, aujourdhui }: { reserve: ReserveOuverte; aujour
   );
 }
 
+/** Une seule action recommandée, avec sa raison (règle d'ordre explicite, voir metier/aujourdhui). */
+function CarteJalon({ jalon }: { jalon: JalonDuJour }) {
+  return (
+    <section aria-labelledby="jalon-du-jour" className="grid gap-3 rounded-lg border-2 border-primary/70 bg-card p-4">
+      <p id="jalon-du-jour" className="surtitre">
+        Jalon du jour · par où commencer
+      </p>
+      <div className="grid gap-0.5">
+        <p className="text-lg font-semibold">{jalon.titre}</p>
+        <p className="text-sm text-muted-foreground">{jalon.detail}</p>
+      </div>
+      <p className="text-sm">
+        <span className="font-medium">Pourquoi celle-ci : </span>
+        {jalon.pourquoi}
+      </p>
+      <LienBouton href={jalon.lien} className="h-12 w-full text-base sm:w-fit">
+        {jalon.action ?? "Ouvrir"}
+        <ArrowRight className="size-4" aria-hidden />
+      </LienBouton>
+    </section>
+  );
+}
+
+function ListeRegroupements({ groupes }: { groupes: Regroupement[] }) {
+  return (
+    <section className="grid gap-2">
+      <h2 className="flex items-baseline gap-2 text-lg font-semibold">
+        Une seule visite ?<span className="text-sm font-normal text-muted-foreground">{groupes.length}</span>
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        Plusieurs contrôles du même prestataire tombent dans la même période : à grouper en une intervention.
+      </p>
+      <ul className="grid gap-2">
+        {groupes.map((g) => (
+          <li key={g.prestataire_id} className="grid gap-1 rounded-lg border bg-card p-3">
+            <Link href={`/prestataires/${g.prestataire_id}`} className="flex items-center gap-2 font-medium underline">
+              <Users className="size-4" aria-hidden />
+              {g.prestataire_nom} · {g.plans.length} contrôles
+            </Link>
+            <span className="text-sm text-muted-foreground">
+              {g.du === g.au
+                ? `Échéance le ${formaterDate(g.du)}`
+                : `Échéances du ${formaterDate(g.du)} au ${formaterDate(g.au)}`}
+            </span>
+            <ul className="grid gap-0.5 text-sm">
+              {g.plans.map((p) => (
+                <li key={p.plan_controle_id}>
+                  <Link href={`/controles/plans/${p.plan_controle_id}`} className="underline-offset-2 hover:underline">
+                    {p.type_libelle}
+                    {p.perimetre && ` — ${p.perimetre}`} · {formaterDate(p.echeance)}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Raison pour laquelle les rappels mail ne partiront pas (admin), ou null. */
+function rappelsInactifs(destinataires: number): string | null {
+  try {
+    lireEnvRappels();
+  } catch {
+    return "Rappels mail inactifs : la configuration d'envoi est incomplète.";
+  }
+  return destinataires === 0 ? "Rappels mail inactifs : aucun destinataire n'est renseigné." : null;
+}
+
 export default async function PageAujourdhui() {
   const aujourdhui = aujourdhuiParis();
-  const { utilisateur, plans, reserves, interventions, contrats, seuilJours } = await requete(async (tx, u) => ({
-    utilisateur: u,
-    ...(await donneesAujourdhui(tx)),
-  }));
+  const { utilisateur, plans, reserves, interventions, contrats, seuilJours, destinataires, aVerifier } = await requete(
+    async (tx, u) => {
+      const donnees = await donneesAujourdhui(tx);
+      return { utilisateur: u, ...donnees, aVerifier: await verifications(tx, donnees.plans) };
+    },
+  );
   const peutEcrire = utilisateur.role !== "lecture";
 
   const parStatut = (s: PlanEcheance["statut_echeance"]) => plans.filter((p) => p.statut_echeance === s);
@@ -113,6 +189,10 @@ export default async function PageAujourdhui() {
   const aTraiter =
     enRetard.length + jamais.length + aEcheance.length + reserves.length + interventions.length + contratsAlerte.length;
   const rienDUrgent = aTraiter === 0;
+  const jalon = jalonDuJour({ aujourdhui, plans, reserves, interventions, contrats: contratsAlerte });
+  const groupes = regroupements(plans, aujourdhui, seuilJours);
+  const nbAVerifier = aVerifier.reduce((n, c) => n + c.elements.length, 0);
+  const alerteRappels = utilisateur.role === "admin" ? rappelsInactifs(destinataires) : null;
 
   return (
     <div className="mx-auto grid max-w-3xl gap-6 p-4 md:p-8">
@@ -126,6 +206,17 @@ export default async function PageAujourdhui() {
           </p>
         )}
       </header>
+
+      {alerteRappels && (
+        <p role="alert" className="rounded-md bg-amber-400/20 p-3 text-sm">
+          {alerteRappels}{" "}
+          <Link href="/parametres" className="font-medium underline">
+            Paramètres
+          </Link>
+        </p>
+      )}
+
+      {jalon && <CarteJalon jalon={jalon} />}
 
       {rienDUrgent && (
         <p className="flex items-center gap-3 rounded-lg border bg-card p-6 text-lg">
@@ -207,11 +298,31 @@ export default async function PageAujourdhui() {
         ))}
       </Section>
 
+      {groupes.length > 0 && <ListeRegroupements groupes={groupes} />}
+
       <Section titre="Autres réserves ouvertes" nombre={autresReserves.length} ton="neutre">
         {autresReserves.map((r) => (
           <LigneReserve key={r.id} reserve={r} aujourdhui={aujourdhui} />
         ))}
       </Section>
+
+      {nbAVerifier > 0 && (
+        <Link
+          href="/verifications"
+          className="flex items-center justify-between gap-3 rounded-lg border border-dashed p-4"
+        >
+          <span>
+            <span className="font-medium">
+              {nbAVerifier} point{nbAVerifier > 1 ? "s" : ""} à vérifier dans le suivi
+            </span>
+            <span className="block text-sm text-muted-foreground">
+              Saisies incomplètes qui peuvent cacher un oubli : {aVerifier.map((c) => c.titre.toLowerCase()).join(", ")}
+              .
+            </span>
+          </span>
+          <ArrowRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 // Interventions et chantiers : schémas de saisie et cycle de vie (fonctions pures, testées).
 
 import { z } from "zod";
+import { dateOptionnelle, texteOptionnel, uuidOptionnel } from "./saisie";
 import { aujourdhuiParis } from "./echeance";
 
 export const STATUTS_INTERVENTION = ["a_faire", "en_cours", "en_attente", "terminee", "annulee"] as const;
@@ -78,27 +79,6 @@ export function comparerInterventions(
 }
 
 // --- Schémas de saisie ---------------------------------------------------------
-
-const texteOptionnel = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${max} caractères maximum`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable()
-    .default(null);
-
-const uuidOptionnel = z
-  .union([z.uuid(), z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
-
-const dateOptionnelle = z
-  .union([z.iso.date("date invalide"), z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
 
 export const schemaIntervention = z.object({
   type: z.enum(TYPES_INTERVENTION),

@@ -43,9 +43,16 @@ export default async function PageLocalisations() {
             <li key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3">
               <span>
                 <span className="font-medium">{l.libelle_complet}</span>
-                <span className="block text-sm text-muted-foreground">
-                  {l.nb_equipements} équipement{l.nb_equipements > 1 ? "s" : ""}
-                </span>
+                {l.nb_equipements > 0 ? (
+                  <Link
+                    href={`/equipements?localisation=${l.id}`}
+                    className="block text-sm text-muted-foreground underline"
+                  >
+                    {l.nb_equipements} équipement{l.nb_equipements > 1 ? "s" : ""}
+                  </Link>
+                ) : (
+                  <span className="block text-sm text-muted-foreground">0 équipement</span>
+                )}
               </span>
               {role === "admin" && l.nb_equipements === 0 && (
                 <Formulaire

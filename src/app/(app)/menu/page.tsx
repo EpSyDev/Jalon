@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BoutonDeconnexion } from "@/components/bouton-deconnexion";
 import { RappelDonneesPatient } from "@/components/rappel-donnees-patient";
 import { exigerUtilisateur } from "@/lib/auth";
+import { lireEnv } from "@/lib/env";
 import { modulesVisibles } from "@/lib/navigation";
 import { LIBELLES_ROLE } from "@/lib/roles";
 
@@ -27,6 +28,11 @@ export default async function PageMenu() {
           </Link>
         ))}
       </nav>
+      {lireEnv().AUTH_MODE === "supabase" && (
+        <Link href="/connexion/mot-de-passe" className="text-sm underline">
+          Changer mon mot de passe
+        </Link>
+      )}
       <RappelDonneesPatient />
       <BoutonDeconnexion />
     </div>

@@ -1,6 +1,7 @@
 // Stocks : schémas de saisie. Le stock courant est calculé en base (v_stocks), jamais stocké.
 
 import { z } from "zod";
+import { texteOptionnel } from "./saisie";
 import { aujourdhuiParis } from "./echeance";
 
 /** Quantité saisie à la française (« 2,5 ») : 3 décimales au plus. */
@@ -26,15 +27,6 @@ const quantite = (obligatoire: boolean) =>
       }
       return q;
     });
-
-const texteOptionnel = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${max} caractères maximum`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable()
-    .default(null);
 
 export const schemaArticle = z.object({
   reference: texteOptionnel(60),

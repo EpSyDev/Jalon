@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPlus } from "lucide-react";
+import { ChevronRight, ClipboardPlus, Download, Route } from "lucide-react";
 import { BadgeReserves, BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
+import { buttonVariants } from "@/components/ui/button";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_STATUT, ORDRE_STATUT } from "@/lib/format";
 import type { StatutEcheance } from "@/lib/metier/echeance";
@@ -28,9 +29,17 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Contrôles</h1>
         <div className="flex flex-wrap gap-2">
+          <LienBouton href="/controles/tournee" variante="outline">
+            <Route className="size-4" aria-hidden />
+            Tournée
+          </LienBouton>
           <LienBouton href="/controles/types" variante="outline">
             Types de contrôle
           </LienBouton>
+          <a href="/controles/export" className={buttonVariants({ variant: "outline" })}>
+            <Download className="size-4" aria-hidden />
+            Exporter (Excel)
+          </a>
           {peutEcrire && (
             <LienBouton href="/controles/plans/nouveau" variante="outline">
               Nouveau plan
@@ -50,7 +59,7 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
         <Link
           href="/controles"
           className={cn(
-            "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+            "shrink-0 inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
             !statutActif && "bg-foreground text-background",
           )}
         >
@@ -61,7 +70,7 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
             key={s}
             href={`/controles?statut=${s}`}
             className={cn(
-              "shrink-0 rounded-full border px-3 py-1.5 text-sm",
+              "shrink-0 inline-flex min-h-11 items-center rounded-full border px-3 py-1.5 text-sm",
               statutActif === s && "bg-foreground text-background",
             )}
           >

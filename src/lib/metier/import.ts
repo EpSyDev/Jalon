@@ -58,6 +58,11 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
   equipements: [
     { cle: "code", entete: "Code", obligatoire: true, aide: "Identifiant unique et lisible (ex. : TGBT-A)." },
     { cle: "libelle", entete: "Libellé", obligatoire: true, aide: "Désignation de l'équipement." },
+    {
+      cle: "univers",
+      entete: "Univers",
+      aide: "Facultatif. Grand ensemble du parc (ex. : Chauffage-ventilation). Créé si absent.",
+    },
     { cle: "famille", entete: "Famille", aide: "Facultatif. Créée si absente." },
     { cle: "batiment", entete: "Bâtiment", aide: "Facultatif. Obligatoire si niveau ou local est rempli." },
     { cle: "niveau", entete: "Niveau", aide: "Facultatif." },
@@ -170,6 +175,7 @@ const MOTS_CLES: Record<string, string[]> = {
   dernier_controle: ["dernier", "derniere", "realise", "realisation", "date controle", "date"],
   resultat: ["resultat", "conclusion", "avis", "etat"],
   code: ["code", "numero", "identifiant", "ref", "id"],
+  univers: ["univers", "lot", "corps d etat", "metier"],
   batiment: ["batiment", "site", "immeuble"],
   niveau: ["niveau", "etage"],
   local: ["local", "piece", "salle"],
@@ -287,6 +293,7 @@ export type Existant = {
   equipements: { id: string; code: string }[];
   plans: { type_controle_id: string; equipement_id: string | null; perimetre_libelle: string | null }[];
   localisations: { id: string; batiment: string; niveau: string | null; local: string | null }[];
+  univers: { id: string; libelle: string }[];
 };
 
 export type StatutLigne = "creation" | "ignoree" | "erreur";
@@ -318,10 +325,12 @@ export type OperationsControles = {
 
 export type OperationsEquipements = {
   familles: string[];
+  univers: string[];
   localisations: { cle: string; batiment: string; niveau: string | null; local: string | null }[];
   equipements: {
     code: string;
     libelle: string;
+    univers: Ref | null;
     famille: Ref | null;
     localisation: Ref | null;
     marque: string | null;
@@ -338,7 +347,7 @@ function index<T>(liste: T[], cle: (x: T) => string): Map<string, T> {
   return new Map(liste.map((x) => [cle(x), x]));
 }
 
-const MAX_TEXTE = { libelle: 200, perimetre: 200, reference: 500, nom: 200, code: 60, court: 120 };
+const MAX_TEXTE = { libelle: 200, perimetre: 200, reference: 500, nom: 200, code: 60, court: 120, niveau: 60 };
 
 function verifierLongueur(valeur: string | null, max: number, nom: string, erreurs: string[]) {
   if (valeur && valeur.length > max) erreurs.push(`${nom} : ${max} caractères maximum`);
@@ -516,13 +525,29 @@ export function planifierControles(lignes: LigneBrute[], existant: Existant): Pl
 
 export function planifierEquipements(lignes: LigneBrute[], existant: Existant): Planification<OperationsEquipements> {
   const aujourdhui = aujourdhuiParis();
-  const familles = index(existant.familles, (f) => normaliser(f.libelle));
   const codes = new Set(existant.equipements.map((e) => normaliser(e.code)));
   const cleLoc = (b: string, n: string | null, l: string | null) => [b, n ?? "", l ?? ""].map(normaliser).join("|");
   const localisations = index(existant.localisations, (l) => cleLoc(l.batiment, l.niveau, l.local));
 
-  const ops: OperationsEquipements = { familles: [], localisations: [], equipements: [] };
-  const nouvellesFamilles = new Map<string, string>();
+  const ops: OperationsEquipements = { familles: [], univers: [], localisations: [], equipements: [] };
+  /** Référentiel désigné par son libellé : existant (id) ou créé une seule fois par l'import. */
+  const referentiel = (existants: { id: string; libelle: string }[], creations: string[]) => {
+    const parCle = index(existants, (x) => normaliser(x.libelle));
+    const nouveaux = new Map<string, string>();
+    return (libelle: string | null): Ref | null => {
+      if (!libelle) return null;
+      const cle = normaliser(libelle);
+      const trouve = parCle.get(cle);
+      if (trouve) return { id: trouve.id };
+      if (!nouveaux.has(cle)) {
+        nouveaux.set(cle, libelle);
+        creations.push(libelle);
+      }
+      return { nouveau: nouveaux.get(cle)! };
+    };
+  };
+  const refFamille = referentiel(existant.familles, ops.familles);
+  const refUnivers = referentiel(existant.univers, ops.univers);
   const nouvellesLocs = new Set<string>();
   const codesFichier = new Set<string>();
   const apercu: LigneApercu[] = [];
@@ -531,6 +556,7 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     const erreurs: string[] = [];
     const code = texte(v.code);
     const libelle = texte(v.libelle);
+    const univers = texte(v.univers);
     const famille = texte(v.famille);
     const batiment = texte(v.batiment);
     const niveau = texte(v.niveau);
@@ -540,10 +566,22 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
 
     if (!code) erreurs.push("Code manquant");
     if (!libelle) erreurs.push("Libellé manquant");
+    // Même règle que la saisie (schemaEquipement) : le code sert dans les adresses et les étiquettes.
+    if (code && !/^[^\s/\\?#]+$/.test(code)) erreurs.push("Code : sans espace ni / \\ ? #");
     verifierLongueur(code, MAX_TEXTE.code, "Code", erreurs);
     verifierLongueur(libelle, MAX_TEXTE.libelle, "Libellé", erreurs);
+    verifierLongueur(univers, MAX_TEXTE.court, "Univers", erreurs);
     verifierLongueur(famille, MAX_TEXTE.court, "Famille", erreurs);
     verifierLongueur(batiment, MAX_TEXTE.court, "Bâtiment", erreurs);
+    verifierLongueur(niveau, MAX_TEXTE.niveau, "Niveau", erreurs);
+    verifierLongueur(local, MAX_TEXTE.court, "Local", erreurs);
+    for (const [cle, nom] of [
+      ["marque", "Marque"],
+      ["modele", "Modèle"],
+      ["numero_serie", "N° de série"],
+    ] as const) {
+      verifierLongueur(texte(v[cle]), MAX_TEXTE.court, nom, erreurs);
+    }
     if (!batiment && (niveau || local)) erreurs.push("Bâtiment obligatoire si niveau ou local est rempli");
     if (miseEnService.erreur) erreurs.push(`Mise en service : ${miseEnService.erreur}`);
     if (miseEnService.valeur && miseEnService.valeur > aujourdhui) erreurs.push("Mise en service dans le futur");
@@ -558,20 +596,6 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     if (codes.has(normaliser(code))) {
       apercu.push({ numero, statut: "ignoree", resume: `${code} — ${libelle} : code déjà présent`, erreurs: [] });
       continue;
-    }
-
-    let refFamille: Ref | null = null;
-    if (famille) {
-      const cle = normaliser(famille);
-      const f = familles.get(cle);
-      if (f) refFamille = { id: f.id };
-      else {
-        if (!nouvellesFamilles.has(cle)) {
-          nouvellesFamilles.set(cle, famille);
-          ops.familles.push(famille);
-        }
-        refFamille = { nouveau: nouvellesFamilles.get(cle)! };
-      }
     }
 
     let refLoc: Ref | null = null;
@@ -591,7 +615,8 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     ops.equipements.push({
       code,
       libelle,
-      famille: refFamille,
+      univers: refUnivers(univers),
+      famille: refFamille(famille),
       localisation: refLoc,
       marque: texte(v.marque),
       modele: texte(v.modele),
@@ -602,7 +627,7 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     apercu.push({
       numero,
       statut: "creation",
-      resume: [`${code} — ${libelle}`, [batiment, niveau, local].filter(Boolean).join(" / ")]
+      resume: [`${code} — ${libelle}`, univers, [batiment, niveau, local].filter(Boolean).join(" / ")]
         .filter(Boolean)
         .join(" · "),
       erreurs: [],

@@ -13,6 +13,9 @@ function politiqueCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
     // En dev, l'outillage Next injecte des styles inline ; la production reste stricte.
     dev ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
+    // Attributs style (barres des graphiques, largeur des titres) : sans cela ils sont ignorés en production.
+    // Les balises <style> restent soumises au nonce.
+    ...(dev ? [] : ["style-src-attr 'unsafe-inline'"]),
     "img-src 'self' blob: data:",
     "font-src 'self'",
     "connect-src 'self'",
@@ -30,6 +33,8 @@ export async function proxy(request: NextRequest) {
   const entetes = new Headers(request.headers);
   entetes.set("x-nonce", nonce);
   entetes.set("Content-Security-Policy", csp);
+  // Page demandée : permet de revenir au bon endroit après la double authentification (scan d'un QR code).
+  entetes.set("x-chemin", request.nextUrl.pathname + request.nextUrl.search);
 
   let reponse = NextResponse.next({ request: { headers: entetes } });
 

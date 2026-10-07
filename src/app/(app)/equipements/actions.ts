@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ADMIN, executer, ID_INVALIDE, idsValides, RefusMetier, valider, type Resultat } from "@/lib/actions";
-import { schemaEquipement, schemaLocalisation, schemaUnivers } from "@/lib/metier/parc";
+import { premierMessage } from "@/lib/metier/controles";
+import { schemaEquipement, schemaLocalisation, schemaModificationGroupee, schemaUnivers } from "@/lib/metier/parc";
 
 const LIBELLES: Record<string, string> = {
   code: "Code",
@@ -114,4 +115,29 @@ export async function archiverUnivers(id: string): Promise<Resultat> {
   if (echec) return { erreur: echec };
   rafraichir();
   return { message: "Univers archivé." };
+}
+
+// --- Modification groupée ------------------------------------------------------------
+
+/** Change l'univers, la localisation ou le statut de plusieurs équipements en une fois (tracé au journal). */
+export async function modifierEquipementsEnMasse(formData: FormData): Promise<Resultat> {
+  const saisie = schemaModificationGroupee.safeParse({
+    ids: formData.getAll("ids"),
+    univers_id: formData.get("univers_id") ?? "",
+    localisation_id: formData.get("localisation_id") ?? "",
+    statut: formData.get("statut") ?? "",
+  });
+  if (!saisie.success) return { erreur: premierMessage(saisie.error, LIBELLES) };
+  const { ids, modifications } = saisie.data;
+  let n = 0;
+  const echec = await executer(async (tx) => {
+    const lignes = await tx`
+      update public.equipements set ${tx(modifications)}
+      where id = any(${ids}::uuid[]) and archive_le is null
+      returning id`;
+    n = lignes.length;
+  });
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: `${n} équipement${n > 1 ? "s" : ""} modifié${n > 1 ? "s" : ""}.` };
 }

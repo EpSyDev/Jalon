@@ -5,6 +5,8 @@ import {
   CalendarCheck,
   ClipboardCheck,
   FileText,
+  Handshake,
+  History,
   HardHat,
   Package,
   Settings,
@@ -33,7 +35,9 @@ export const MODULES: Module[] = [
   { href: "/prestataires", libelle: "Prestataires", icone: Building2 },
   { href: "/statistiques", libelle: "Statistiques", icone: BarChart3 },
   { href: "/stocks", libelle: "Stocks", icone: Package },
+  { href: "/relais", libelle: "Passage de relais", icone: Handshake },
   { href: "/import", libelle: "Import", icone: Upload, roles: ["admin", "technicien"] },
+  { href: "/journal", libelle: "Journal", icone: History, roles: ["admin"] },
   { href: "/parametres", libelle: "Paramètres", icone: Settings, roles: ["admin"] },
 ];
 

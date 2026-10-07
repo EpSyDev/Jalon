@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { lireEnvRappels } from "@/lib/env";
+import { lireSecretCron } from "@/lib/env";
 import { executerRappels } from "@/lib/rappels/executer";
 
 function autorise(entete: string | null, secret: string): boolean {
@@ -11,10 +11,11 @@ function autorise(entete: string | null, secret: string): boolean {
 
 /** Appelé chaque jour par Vercel Cron (en-tête « Authorization: Bearer CRON_SECRET »). */
 export async function GET(request: Request) {
-  if (!autorise(request.headers.get("authorization"), lireEnvRappels().CRON_SECRET)) {
+  if (!autorise(request.headers.get("authorization"), lireSecretCron())) {
     return NextResponse.json({ erreur: "Non autorisé." }, { status: 401 });
   }
   try {
+    // Mails non configurés : réponse 200 explicite (statut « non_configure »), la base a quand même été lue.
     return NextResponse.json(await executerRappels());
   } catch (e) {
     console.error("Cron rappels en échec :", (e as Error).message);

@@ -20,6 +20,8 @@ import {
   schemaReserve,
   schemaTypeControle,
 } from "@/lib/metier/controles";
+import { aujourdhuiParis } from "@/lib/metier/echeance";
+import { cheminSur } from "@/lib/metier/parc";
 
 const LIBELLES: Record<string, string> = {
   libelle: "Libellé",
@@ -147,7 +149,24 @@ export async function enregistrerControle(formData: FormData): Promise<Resultat>
   });
   if (echec) return { erreur: echec };
   rafraichir();
-  redirect(`/controles/plans/${donnees.plan_controle_id}`);
+  const retour = cheminSur(formData.get("retour"));
+  redirect(retour.startsWith("/controles/tournee") ? retour : `/controles/plans/${donnees.plan_controle_id}`);
+}
+
+/** Tournée : contrôle conforme réalisé aujourd'hui, en une touche (après confirmation à l'écran). */
+export async function controleConformeAujourdhui(planId: string): Promise<Resultat> {
+  if (!idsValides(planId)) return ID_INVALIDE;
+  const echec = await executer(async (tx) => {
+    const [plan] = await tx`
+      select 1 from public.v_plans_controle_echeance where plan_controle_id = ${planId}`;
+    if (!plan) throw new RefusMetier("Plan inactif ou archivé : rechargez la page.");
+    await tx`
+      insert into public.controles (plan_controle_id, date_realisation, resultat, nb_reserves_declare)
+      values (${planId}, ${aujourdhuiParis()}, 'conforme', 0)`;
+  });
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: "Contrôle conforme enregistré." };
 }
 
 /** Retire un contrôle saisi par erreur (archivage, admin). */

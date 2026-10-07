@@ -30,7 +30,8 @@ npm run lint
 
 Les tests de base rejouent toutes les migrations de zéro, chargent le seed fictif et vérifient :
 droits par rôle (RLS), 2FA admin, interdiction de supprimer, archivage réservé aux admins, journal d'audit,
-contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
+contraintes de dates, et parité SQL/TypeScript du calcul des échéances. `tests/db/pilote.ts` expose PGlite en
+protocole Postgres : les requêtes de l'application (import, parc, journal) y passent par le vrai pilote, sous RLS.
 
 ## Rappels mail
 
@@ -79,6 +80,13 @@ Aucune variable `NEXT_PUBLIC_` : tout passe par le serveur. Ne jamais committer 
 2. `npx supabase link` puis `npx supabase db push` (migrations uniquement, **pas** de seed).
 3. Créer les comptes par invitation depuis le tableau de bord, puis fixer les rôles :
    `update public.profils set role = 'admin' where id = '…';`
+   Modèles de mail (Supabase → Authentication → Emails), pour que les liens fonctionnent avec le rendu serveur
+   et résistent aux analyseurs de liens des messageries (le lien n'est consommé qu'au clic sur « Continuer ») :
+   - **Invite user** : `<a href="{{ .SiteURL }}/connexion/lien?token_hash={{ .TokenHash }}&type=invite">Choisir mon mot de passe</a>`
+   - **Reset password** : `<a href="{{ .SiteURL }}/connexion/lien?token_hash={{ .TokenHash }}&type=recovery">Choisir un nouveau mot de passe</a>`
+
+   L'envoi de mails par le service intégré de Supabase est très limité (quelques mails par heure, adresses de
+   l'équipe du projet seulement) : configurer un SMTP (Resend, région UE) avant d'inviter des collègues.
 4. Vercel : importer le dépôt, renseigner les variables du mode `supabase` (`DATABASE_URL` = pooler, port 6543). `vercel.json` force la région `cdg1` (Paris).
 
 ## Structure

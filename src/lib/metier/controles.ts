@@ -2,6 +2,7 @@
 // Les bornes reprennent les contraintes CHECK de la base : la base reste la dernière ligne de défense.
 
 import { z } from "zod";
+import { dateIso, dateOptionnelle, texteObligatoire, texteOptionnel, uuidOptionnel } from "./saisie";
 import { aujourdhuiParis } from "./echeance";
 
 export const CARACTERES = ["reglementaire", "obligatoire", "interne"] as const;
@@ -11,31 +12,6 @@ export const GRAVITES = ["mineure", "majeure", "critique"] as const;
 const TEXTE_LIBRE = 2000;
 
 /** Champ texte facultatif : vide → null. */
-const texteOptionnel = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${max} caractères maximum`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable()
-    .default(null);
-
-const texteObligatoire = (max: number) => z.string().trim().min(1, "obligatoire").max(max, `${max} caractères maximum`);
-
-const uuidOptionnel = z
-  .union([z.uuid(), z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
-
-const dateIso = z.iso.date("date invalide (JJ/MM/AAAA)");
-
-const dateOptionnelle = z
-  .union([dateIso, z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
-
 const periodicite = z.coerce
   .number({ error: "nombre de mois attendu" })
   .int("nombre entier de mois")

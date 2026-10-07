@@ -17,6 +17,7 @@ export type InterventionUrgente = {
   titre: string;
   statut: "a_faire" | "en_cours" | "en_attente";
   date_prevue: string | null;
+  date_demande: string;
   equipement_code: string | null;
   assignee_nom: string | null;
 };
@@ -45,7 +46,7 @@ export async function donneesAujourdhui(tx: Tx) {
       where r.statut = 'ouverte' and r.archive_le is null
       order by r.echeance_levee nulls last, r.date_constat`,
     tx<InterventionUrgente[]>`
-      select i.id, i.titre, i.statut, i.date_prevue, e.code as equipement_code, pf.nom as assignee_nom
+      select i.id, i.titre, i.statut, i.date_prevue, i.date_demande, e.code as equipement_code, pf.nom as assignee_nom
       from public.interventions i
       left join public.equipements e on e.id = i.equipement_id
       left join public.profils pf on pf.id = i.assignee_id
@@ -57,9 +58,11 @@ export async function donneesAujourdhui(tx: Tx) {
       join public.prestataires p on p.id = c.prestataire_id
       where c.date_fin is not null and c.archive_le is null
       order by c.date_fin`,
-    tx<{ jours: number }[]>`
-      select coalesce((select (valeur #>> '{}')::int from public.parametres where cle = 'seuil_a_echeance_jours'), 60)
-        as jours`,
+    tx<{ jours: number; destinataires: number }[]>`
+      select
+        coalesce((select (valeur #>> '{}')::int from public.parametres where cle = 'seuil_a_echeance_jours'), 60) as jours,
+        coalesce((select jsonb_array_length(valeur) from public.parametres
+          where cle = 'destinataires_rappels' and jsonb_typeof(valeur) = 'array'), 0) as destinataires`,
   ]);
-  return { plans, reserves, interventions, contrats, seuilJours: seuil.jours };
+  return { plans, reserves, interventions, contrats, seuilJours: seuil.jours, destinataires: seuil.destinataires };
 }
