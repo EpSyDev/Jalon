@@ -192,6 +192,22 @@ Un second axe, indépendant : **`reserves_ouvertes`** (au moins une réserve ouv
 - Contrôle saisi par erreur : retiré (archivé) par un admin, tracé au journal ; l'échéance est recalculée.
 - Garde-fous de saisie (pas des règles réglementaires) : « conforme » ⇒ 0 réserve, « avec réserves » ⇒ au moins 1 ; date de réalisation ou de levée jamais dans le futur.
 
+### 6.5 Règles ajoutées par l'audit du 07/10/2026 (proposées, à valider ; détail dans `AUDIT.md`)
+
+- **Jalon du jour** (écran Aujourd'hui) : une seule action recommandée, choisie par un ordre écrit, jamais par un score :
+  préavis de contrat à moins de 14 jours → contrôle en retard (réglementaire, puis obligatoire, puis interne ; le plus
+  ancien) → réserve critique dont l'échéance de levée est dépassée → intervention urgente (la plus ancienne) → plan
+  jamais contrôlé → préavis plus lointain → échéance la plus proche. La raison est affichée.
+- **Regroupement** : au moins deux contrôles d'un même prestataire, en retard ou à échéance dans la fenêtre du seuil
+  « à échéance » → suggestion d'une seule visite.
+- **Trous dans le suivi** (aucune alerte, simple signalement) : dernier contrôle plus ancien que deux périodes ;
+  réserves « à détailler » ; contrôles réglementaires ou obligatoires sans prestataire ; contrats sans date de fin ;
+  équipements en service sans contrôle.
+- **Tournée** : « Conforme » enregistre un contrôle conforme daté du jour, après une seconde touche de confirmation.
+- **Dates constatées** (levée, clôture, fin réelle, mouvement, mise en service) : jamais dans le futur, vérifié aussi en base.
+- **Comptes** : invitation et réinitialisation par lien reçu par mail, consommé seulement au clic ; échecs de
+  connexion limités (5 par adresse, 30 par IP sur 15 min ; 5 codes 2FA par compte).
+
 ## 7. Sécurité et rôles
 
 - RLS sur toutes les tables, politiques testées.
@@ -269,6 +285,8 @@ Claude Code génère, sans logique métier approfondie :
 - Statuts des chantiers (proposés ci-dessus) à valider.
 - Liste exhaustive des contrôles à fournir (annexe A).
 - Indicateurs statistiques (B10).
+- Décisions ouvertes par l'audit du 07/10/2026 (`AUDIT.md` §4) : ordre du jalon du jour, demande d'intervention par
+  un compte lecture, flux iCal, coût et temps passé, 2FA pour tous et PWA.
 
 ---
 

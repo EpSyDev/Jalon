@@ -30,7 +30,8 @@ npm run lint
 
 Les tests de base rejouent toutes les migrations de zéro, chargent le seed fictif et vérifient :
 droits par rôle (RLS), 2FA admin, interdiction de supprimer, archivage réservé aux admins, journal d'audit,
-contraintes de dates, et parité SQL/TypeScript du calcul des échéances.
+contraintes de dates, et parité SQL/TypeScript du calcul des échéances. `tests/db/pilote.ts` expose PGlite en
+protocole Postgres : les requêtes de l'application (import, parc, journal) y passent par le vrai pilote, sous RLS.
 
 ## Rappels mail
 
