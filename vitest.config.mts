@@ -12,5 +12,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Les tests de base (PGlite) tournent en parallèle : marge contre les lenteurs ponctuelles.
+    testTimeout: 20_000,
   },
 });

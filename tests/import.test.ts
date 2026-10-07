@@ -12,7 +12,15 @@ import {
   type Existant,
 } from "@/lib/metier/import";
 
-const VIDE: Existant = { familles: [], prestataires: [], types: [], equipements: [], plans: [], localisations: [] };
+const VIDE: Existant = {
+  familles: [],
+  prestataires: [],
+  types: [],
+  equipements: [],
+  plans: [],
+  localisations: [],
+  univers: [],
+};
 
 const ENTETE_CONTROLES = [
   "Famille",
@@ -201,6 +209,37 @@ describe("planification des équipements", () => {
 
   it("exige le bâtiment si niveau ou local est rempli", () => {
     expect(planifier([["A1", "X", "", "", "R+1", ""]]).lignes[0].erreurs[0]).toMatch(/Bâtiment obligatoire/);
+  });
+
+  it("univers : rattache à l'existant (accents, casse, ponctuation), sinon crée une seule fois", () => {
+    const lu = lireTableau(
+      [
+        ["Code", "Libellé", "Univers"],
+        ["C1", "Centrale", "chauffage ventilation"],
+        ["E1", "Armoire", "Électricité"],
+        ["E2", "Armoire 2", "ELECTRICITE"],
+        ["S1", "Sans univers", ""],
+      ],
+      "equipements",
+    );
+    const p = planifierEquipements(lu.lignes!, { ...VIDE, univers: [{ id: "u1", libelle: "Chauffage-ventilation" }] });
+    expect(p.operations.univers).toEqual(["Électricité"]);
+    expect(p.operations.equipements.map((e) => e.univers)).toEqual([
+      { id: "u1" },
+      { nouveau: "Électricité" },
+      { nouveau: "Électricité" },
+      null,
+    ]);
+  });
+
+  it("refuse en ligne (et non à l'enregistrement) les textes trop longs et les codes avec espace", () => {
+    const p = planifier([
+      ["A 1", "X"],
+      ["A2", "X", "", "Bât", "N".repeat(61)],
+    ]);
+    expect(p.lignes[0].erreurs).toContain("Code : sans espace ni / \\ ? #");
+    expect(p.lignes[1].erreurs).toContain("Niveau : 60 caractères maximum");
+    expect(p.importable).toBe(false);
   });
 });
 

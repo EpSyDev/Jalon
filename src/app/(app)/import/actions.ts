@@ -77,6 +77,7 @@ function resumeCreations(ops: Operations): string[] {
     const repris = ops.plans.filter((x) => x.dernier).length;
     if (repris) r.push(compter(repris, "dernier contrôle repris", "derniers contrôles repris"));
   } else {
+    if (ops.univers.length) r.push(`${compter(ops.univers.length, "univers", "univers")} : ${ops.univers.join(", ")}`);
     if (ops.localisations.length) r.push(compter(ops.localisations.length, "localisation", "localisations"));
     r.push(compter(ops.equipements.length, "équipement", "équipements"));
   }
@@ -127,7 +128,7 @@ export async function importer(formData: FormData): Promise<ReponseImport> {
         const plan = planifierEquipements(prepare.lignes!, existant);
         if (!plan.importable) return null;
         const r = await executerEquipements(tx, plan.operations);
-        return `Import terminé : ${compter(r.equipements, "équipement", "équipements")}, ${compter(r.localisations, "localisation", "localisations")}.`;
+        return `Import terminé : ${compter(r.equipements, "équipement", "équipements")}, ${compter(r.univers, "univers créé", "univers créés")}, ${compter(r.localisations, "localisation", "localisations")}.`;
       },
       [...ECRITURE],
     );
