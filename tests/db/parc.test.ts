@@ -119,3 +119,96 @@ describe("contacts (pilote postgres)", () => {
     await expect(enTantQueUtilisateur(p.sql, "admin", (tx) => tx`delete from public.contacts`)).rejects.toThrow();
   });
 });
+
+describe("contact créé depuis un prestataire (pilote postgres)", () => {
+  it("créé avec les coordonnées, une seule fois, jamais sans coordonnées", async () => {
+    const { contactDepuisPrestataire } = await import("@/lib/requetes/contacts");
+    const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      const [{ id }] = await tx<
+        { id: string }[]
+      >`insert into public.prestataires (nom) values ('Nouveau presta') returning id`;
+      const sans = await contactDepuisPrestataire(tx, id, {
+        nom: "Nouveau presta",
+        contact_nom: null,
+        email: null,
+        telephone: null,
+      });
+      const donnees = {
+        nom: "Nouveau presta",
+        contact_nom: "M. Durand",
+        email: "d@ex.fr",
+        telephone: "01 02 03 04 05",
+      };
+      const premier = await contactDepuisPrestataire(tx, id, donnees);
+      const second = await contactDepuisPrestataire(tx, id, donnees);
+      const contacts = await tx<{ nom: string; organisation: string; telephone: string }[]>`
+        select nom, organisation, telephone from public.contacts where prestataire_id = ${id}`;
+      return { sans, premier, second, contacts };
+    });
+    expect([r.sans, r.premier, r.second]).toEqual([false, true, false]);
+    expect(r.contacts).toEqual([{ nom: "M. Durand", organisation: "Nouveau presta", telephone: "01 02 03 04 05" }]);
+  });
+});
+
+describe("création d'un contrôle complet (pilote postgres)", () => {
+  it("famille, type et plan créés ; électricité réglementaire ET interne ; doublon et conflit refusés", async () => {
+    const { creerControleComplet } = await import("@/lib/requetes/nouveau-controle");
+    const { schemaNouveauControle } = await import("@/lib/metier/controles");
+    const saisie = (o: Record<string, string>) =>
+      schemaNouveauControle.parse({ perimetre_libelle: "Site", periodicite_mois: "12", ...o });
+    const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      const regl = await creerControleComplet(
+        tx,
+        saisie({
+          famille_nouvelle: "Électricité test",
+          caractere: "reglementaire",
+          libelle: "Vérification annuelle",
+          date_dernier: "2026-03-01",
+          resultat: "avec_reserves",
+          nb_reserves_declare: "2",
+        }),
+      );
+      const interne = await creerControleComplet(
+        tx,
+        saisie({
+          famille_nouvelle: "electricite TEST",
+          caractere: "interne",
+          libelle: "Ronde mensuelle",
+          periodicite_mois: "1",
+        }),
+      );
+      const doublon = await creerControleComplet(
+        tx,
+        saisie({ famille_nouvelle: "Électricité test", caractere: "reglementaire", libelle: "vérification annuelle" }),
+      );
+      const conflit = await creerControleComplet(
+        tx,
+        saisie({
+          famille_nouvelle: "Électricité test",
+          caractere: "reglementaire",
+          libelle: "Vérification annuelle",
+          periodicite_mois: "6",
+          perimetre_libelle: "Bât B",
+        }),
+      );
+      const [{ n: familles }] = await tx<
+        { n: number }[]
+      >`select count(*)::int as n from public.familles_controle where public.normaliser(libelle) = 'electricite test'`;
+      const [{ n: reserves }] = await tx<
+        { n: number }[]
+      >`select count(*)::int as n from public.reserves r join public.controles c on c.id = r.controle_id where c.plan_controle_id = ${regl.id!}`;
+      const statuts = await tx<
+        { statut_echeance: string; caractere: string }[]
+      >`select statut_echeance, caractere from public.v_plans_controle_echeance where plan_controle_id in (${regl.id!}, ${interne.id!}) order by caractere`;
+      return { doublon, conflit, familles, reserves, statuts };
+    });
+    expect(r.familles).toBe(1);
+    expect(r.reserves).toBe(2);
+    expect(r.statuts).toEqual([
+      { statut_echeance: "jamais_controle", caractere: "interne" },
+      { statut_echeance: expect.stringMatching(/a_jour|a_echeance|en_retard/), caractere: "reglementaire" },
+    ]);
+    expect(r.doublon.erreur).toMatch(/existe déjà sur cet équipement ou ce périmètre/);
+    expect(r.conflit.erreur).toMatch(/existe déjà dans cette famille \(12 mois/);
+  });
+});

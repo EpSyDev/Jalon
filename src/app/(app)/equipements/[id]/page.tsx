@@ -101,8 +101,8 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-lg font-semibold">Contrôles ({plans.length})</h2>
           {peutEcrire && (
-            <Link href={`/controles/plans/nouveau?equipement=${e.id}`} className="text-sm underline">
-              Ajouter un plan
+            <Link href={`/controles/nouveau?equipement=${e.id}`} className="text-sm underline">
+              Ajouter un contrôle
             </Link>
           )}
         </div>

@@ -23,8 +23,8 @@ export default async function PageSaisieControle({ searchParams }: PageProps<"/c
     return (
       <div className="mx-auto grid max-w-xl gap-4 p-4 md:p-8">
         <h1 className="text-2xl font-semibold">Saisir un contrôle</h1>
-        <p className="text-muted-foreground">Aucun plan de contrôle actif.</p>
-        <LienBouton href="/controles/plans/nouveau">Créer un plan</LienBouton>
+        <p className="text-muted-foreground">Aucun contrôle actif.</p>
+        <LienBouton href="/controles/nouveau">Créer un contrôle</LienBouton>
       </div>
     );
   }

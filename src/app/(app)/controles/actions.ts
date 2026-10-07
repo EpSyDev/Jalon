@@ -16,12 +16,14 @@ import {
   schemaControle,
   schemaFamille,
   schemaLeveeReserve,
+  schemaNouveauControle,
   schemaPlanControle,
   schemaReserve,
   schemaTypeControle,
 } from "@/lib/metier/controles";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { cheminSur } from "@/lib/metier/parc";
+import { creerControleComplet } from "@/lib/requetes/nouveau-controle";
 
 const LIBELLES: Record<string, string> = {
   libelle: "Libellé",
@@ -43,6 +45,10 @@ const LIBELLES: Record<string, string> = {
   gravite: "Gravité",
   echeance_levee: "Échéance de levée",
   date_levee: "Date de levée",
+  famille_nouvelle: "Nouvelle famille",
+  date_dernier: "Date du dernier contrôle",
+  equipement_id: "Équipement",
+  prestataire_id: "Prestataire",
 };
 
 const valider = <S extends z.ZodType>(schema: S, formData: FormData) => validerAvec(schema, formData, LIBELLES);
@@ -94,6 +100,22 @@ export async function archiverType(id: string): Promise<Resultat> {
   if (echec) return { erreur: echec };
   rafraichir();
   redirect("/controles/types");
+}
+
+// --- Nouveau contrôle (formulaire unique) ------------------------------------
+
+export async function creerNouveauControle(formData: FormData): Promise<Resultat> {
+  const { ok, donnees, erreur } = valider(schemaNouveauControle, formData);
+  if (!ok) return { erreur };
+  let id = "";
+  const echec = await executer(async (tx) => {
+    const r = await creerControleComplet(tx, donnees);
+    if (r.erreur !== undefined) throw new RefusMetier(r.erreur);
+    id = r.id;
+  });
+  if (echec) return { erreur: echec };
+  rafraichir();
+  redirect(`/controles/plans/${id}`);
 }
 
 // --- Plans ------------------------------------------------------------------
