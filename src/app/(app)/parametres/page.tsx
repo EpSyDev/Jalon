@@ -4,7 +4,8 @@ import { Formulaire } from "@/components/formulaire";
 import { requete } from "@/lib/auth";
 import { lireEnvRappels } from "@/lib/env";
 import { LIBELLES_ROLE, type Role } from "@/lib/roles";
-import { changerRole, enregistrerParametres, lancerRappels } from "./actions";
+import { creationDeComptesDisponible } from "@/lib/supabase/admin";
+import { changerRole, creerUtilisateur, enregistrerParametres, lancerRappels } from "./actions";
 
 export const metadata = { title: "Paramètres — Jalon" };
 
@@ -111,9 +112,37 @@ export default async function PageParametres() {
       <section className="grid gap-4 rounded-lg border bg-card p-4">
         <h2 className="text-lg font-semibold">Utilisateurs</h2>
         <p className="text-sm text-muted-foreground">
-          Les comptes sont créés par invitation depuis Supabase (Authentication → Users → Invite user) : le mail mène à
-          la page où la personne choisit son mot de passe. Un nouveau compte a le rôle « Lecture seule ».
+          Un nouveau compte reçoit un mot de passe provisoire, à changer à la première connexion (Menu → Changer mon mot
+          de passe).
         </p>
+        {creationDeComptesDisponible() ? (
+          <details className="rounded-lg border bg-background p-3">
+            <summary className="cursor-pointer font-medium">Ajouter un utilisateur</summary>
+            <Formulaire
+              action={creerUtilisateur}
+              libelle="Créer le compte"
+              libelleEnCours="Création…"
+              reinitialiser
+              className="pt-3"
+            >
+              <ChampTexte nom="nom" libelle="Nom affiché" required maxLength={120} autoComplete="off" />
+              <ChampTexte nom="email" libelle="Adresse mail" type="email" required maxLength={254} autoComplete="off" />
+              <ChampListe
+                nom="role"
+                libelle="Accès"
+                defaultValue="lecture"
+                options={Object.entries(LIBELLES_ROLE).map(([valeur, libelle]) => ({ valeur, libelle }))}
+                aide="Un administrateur devra activer la double authentification à sa première connexion."
+              />
+            </Formulaire>
+          </details>
+        ) : (
+          <p className="rounded-md bg-amber-400/20 p-3 text-sm">
+            Pour créer des comptes ici, ajoutez la variable <code>SUPABASE_SERVICE_ROLE_KEY</code> (clé « service_role »
+            de Supabase → Settings → API Keys) dans les variables d&apos;environnement Vercel, puis redéployez. Cette
+            clé reste côté serveur. En attendant : Supabase → Authentication → Users → Add user.
+          </p>
+        )}
         <ul className="grid gap-3">
           {profils.map((p) => (
             <li key={p.id} className="grid gap-2 rounded-lg border bg-card p-3">

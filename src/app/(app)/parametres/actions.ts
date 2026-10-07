@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { requete } from "@/lib/auth";
+import { sqlBrut } from "@/lib/db";
+import { lireEnv } from "@/lib/env";
+import { creerCompteAuth, motDePasseProvisoire } from "@/lib/supabase/admin";
 import { messageErreurBase } from "@/lib/erreurs";
 import { normaliserSeuils } from "@/lib/metier/rappels";
 import { executerRappels } from "@/lib/rappels/executer";
@@ -112,5 +115,55 @@ export async function lancerRappels(): Promise<Resultat> {
     unstable_rethrow(e);
     console.error("Rappels manuels en échec :", (e as Error).message);
     return { erreur: "Échec de l'exécution des rappels (configuration mail ?)." };
+  }
+}
+
+const schemaNouvelUtilisateur = z.object({
+  nom: z.string().trim().min(1, "obligatoire").max(120, "120 caractères maximum"),
+  email: z.email("adresse mail invalide").max(254),
+  role: z.enum(["admin", "technicien", "lecture"]),
+});
+
+/**
+ * Crée un compte. Mode Supabase : compte confirmé avec un mot de passe provisoire (affiché une seule fois à
+ * l'administrateur, à changer par la personne via Menu → Changer mon mot de passe). Mode local : compte fictif.
+ */
+export async function creerUtilisateur(formData: FormData): Promise<Resultat> {
+  const saisie = schemaNouvelUtilisateur.safeParse(Object.fromEntries(formData));
+  if (!saisie.success) {
+    const issue = saisie.error.issues[0];
+    const champ = { nom: "Nom", email: "Adresse mail", role: "Accès" }[String(issue.path[0])] ?? "Saisie";
+    return { erreur: `${champ} : ${issue.message}` };
+  }
+  const { nom, email, role } = saisie.data;
+  try {
+    await requete(async () => undefined, ["admin"]);
+    let id: string;
+    let motDePasse: string | null = null;
+    if (lireEnv().AUTH_MODE === "local") {
+      const [compte] = await sqlBrut()<{ id: string }[]>`
+        insert into auth.users (id, email, raw_user_meta_data)
+        values (gen_random_uuid(), ${email}, ${sqlBrut().json({ nom })}) returning id`;
+      id = compte.id;
+    } else {
+      motDePasse = motDePasseProvisoire();
+      const cree = await creerCompteAuth({ email, nom, motDePasse });
+      if (cree.erreur !== undefined) return { erreur: cree.erreur };
+      id = cree.id;
+    }
+    // Le profil « lecture » est créé par trigger ; on applique le rôle demandé (soumis à la RLS admin).
+    if (role !== "lecture") {
+      await requete((tx) => tx`update public.profils set role = ${role} where id = ${id}`, ["admin"]);
+    }
+    revalidatePath("/parametres");
+    return {
+      message: motDePasse
+        ? `Compte créé pour ${email}. Mot de passe provisoire, affiché une seule fois : ${motDePasse} — à communiquer par un canal sûr ; la personne le change via Menu → Changer mon mot de passe.`
+        : `Compte fictif créé pour ${email}.`,
+    };
+  } catch (e) {
+    unstable_rethrow(e);
+    console.error("Création d'utilisateur en échec :", (e as { code?: string }).code ?? "?");
+    return { erreur: "Création impossible. Réessayez." };
   }
 }

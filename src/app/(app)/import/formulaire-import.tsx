@@ -21,7 +21,7 @@ const STATUTS = {
 } as const;
 
 export function FormulaireImport({ univers }: { univers: { id: string; libelle: string }[] }) {
-  const [type, setType] = useState<"controles" | "equipements">("controles");
+  const [type, setType] = useState<"controles" | "equipements">("equipements");
   // Classeur à plusieurs feuilles : l'utilisateur choisit celle à importer.
   const [feuilles, setFeuilles] = useState<string[] | null>(null);
   const formulaire = useRef<HTMLFormElement>(null);

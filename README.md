@@ -69,6 +69,7 @@ tout ou rien. Testée automatiquement (`tests/db/sauvegarde.test.ts`) et manuell
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | supabase | Authentification |
 | `CRON_SECRET` | tous | Protège la route du cron (≥ 32 caractères) |
 | `APP_URL` | tous | Adresse publique, pour les liens des mails |
+| `SUPABASE_SERVICE_ROLE_KEY` | supabase | Facultative : création de comptes depuis Paramètres → Utilisateurs (côté serveur uniquement, jamais exposée) |
 | `MAIL_MODE` | tous | `local` (fichiers) ou `resend` (production, interdit en local sur Vercel) |
 | `RESEND_API_KEY`, `MAIL_EXPEDITEUR` | resend | Envoi réel (région d'envoi UE) |
 

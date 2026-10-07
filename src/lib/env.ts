@@ -112,6 +112,12 @@ const schemaRappels = z
 
 export type EnvRappels = z.infer<typeof schemaRappels>;
 
+/** Clé service_role (facultative) : uniquement pour la création de comptes par un administrateur. */
+export function lireCleServiceRole(): string | undefined {
+  const cle = lire("SUPABASE_SERVICE_ROLE_KEY");
+  return cle && cle.length >= 20 ? cle : undefined;
+}
+
 /**
  * Secret du cron seul : la route doit pouvoir authentifier l'appel (et toucher la base, ce qui évite la mise
  * en pause de Supabase) même quand les mails ne sont pas encore configurés.
