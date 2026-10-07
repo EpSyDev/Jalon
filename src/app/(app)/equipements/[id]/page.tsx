@@ -133,7 +133,7 @@ export default async function PageEquipement({ params }: PageProps<"/equipements
               {peutEcrire && (
                 <LienBouton href={`/controles/saisie?plan=${p.plan_controle_id}`} className="h-11 shrink-0">
                   <ClipboardPlus className="size-4" aria-hidden />
-                  Fait
+                  Effectué
                 </LienBouton>
               )}
             </li>

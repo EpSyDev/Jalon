@@ -1,11 +1,12 @@
 import { Download } from "lucide-react";
-import { exigerUtilisateur } from "@/lib/auth";
+import { requete } from "@/lib/auth";
+import { listerUnivers } from "@/lib/requetes/parc";
 import { FormulaireImport } from "./formulaire-import";
 
 export const metadata = { title: "Import — Jalon" };
 
 export default async function PageImport() {
-  await exigerUtilisateur(["admin", "technicien"]);
+  const univers = await requete((tx) => listerUnivers(tx), ["admin", "technicien"]);
   return (
     <div className="mx-auto grid max-w-3xl gap-6 p-4 md:p-8">
       <div className="grid gap-2">
@@ -29,7 +30,7 @@ export default async function PageImport() {
           Modèle « Équipements »
         </a>
       </div>
-      <FormulaireImport />
+      <FormulaireImport univers={univers.map((u) => ({ id: u.id, libelle: u.libelle }))} />
     </div>
   );
 }

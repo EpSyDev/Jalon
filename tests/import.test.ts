@@ -117,7 +117,7 @@ describe("planification des contrôles", () => {
   it("rattache le périmètre à un équipement existant par son code", () => {
     const p = controles([["Élec", "Thermo", "tgbt-a", "interne", 24]], {
       ...VIDE,
-      equipements: [{ id: "e1", code: "TGBT-A" }],
+      equipements: [{ id: "e1", code: "TGBT-A", numero_serie: null }],
     });
     expect(p.operations.plans[0]).toMatchObject({ equipement_id: "e1", perimetre_libelle: null });
   });
@@ -202,7 +202,7 @@ describe("planification des équipements", () => {
         ["B1", "Pompe"],
         ["b1", "Pompe bis"],
       ],
-      { ...VIDE, equipements: [{ id: "e1", code: "a1" }] },
+      { ...VIDE, equipements: [{ id: "e1", code: "a1", numero_serie: null }] },
     );
     expect(p.lignes.map((l) => l.statut)).toEqual(["ignoree", "creation", "erreur"]);
   });

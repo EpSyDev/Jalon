@@ -10,7 +10,7 @@ export async function lireExistant(tx: Tx): Promise<Existant> {
     tx<Existant["types"]>`
       select id, famille_id, libelle, caractere, periodicite_mois from public.types_controle where archive_le is null`,
     // Les codes archivés restent réservés (contrainte d'unicité) : on les inclut.
-    tx<Existant["equipements"]>`select id, code from public.equipements`,
+    tx<Existant["equipements"]>`select id, code, numero_serie from public.equipements`,
     tx<Existant["plans"]>`
       select type_controle_id, equipement_id, perimetre_libelle from public.plans_controle where archive_le is null`,
     tx<Existant["localisations"]>`

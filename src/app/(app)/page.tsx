@@ -82,7 +82,7 @@ function LignePlan({ plan, detail, peutEcrire }: { plan: PlanEcheance; detail: s
       </Link>
       {peutEcrire && (
         <LienBouton href={`/controles/saisie?plan=${plan.plan_controle_id}`} className="h-11 shrink-0">
-          Fait
+          Effectué
         </LienBouton>
       )}
     </li>

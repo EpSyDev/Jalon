@@ -56,7 +56,12 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
     },
   ],
   equipements: [
-    { cle: "code", entete: "Code", obligatoire: true, aide: "Identifiant unique et lisible (ex. : TGBT-A)." },
+    {
+      cle: "code",
+      entete: "Code",
+      obligatoire: true,
+      aide: "Identifiant unique et lisible (ex. : TGBT-A). Facultatif si vous indiquez un préfixe pour générer les codes.",
+    },
     { cle: "libelle", entete: "Libellé", obligatoire: true, aide: "Désignation de l'équipement." },
     {
       cle: "univers",
@@ -77,6 +82,19 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
       aide: "Facultatif, JJ/MM/AAAA.",
     },
     { cle: "statut", entete: "Statut", aide: "en service (défaut), hors service ou réformé." },
+    {
+      cle: "notes",
+      entete: "Notes",
+      alias: ["observation", "observations", "remarque", "remarques", "commentaire"],
+      aide: "Facultatif. Texte repris tel quel dans les notes de l'équipement.",
+    },
+    {
+      cle: "info_1",
+      entete: "Information complémentaire 1",
+      aide: "Facultatif. Toute autre colonne utile (n° d'inventaire, service…) : ajoutée aux notes avec le titre de la colonne.",
+    },
+    { cle: "info_2", entete: "Information complémentaire 2", aide: "Facultatif. Idem." },
+    { cle: "info_3", entete: "Information complémentaire 3", aide: "Facultatif. Idem." },
   ],
 };
 
@@ -182,6 +200,7 @@ const MOTS_CLES: Record<string, string[]> = {
   marque: ["marque", "fabricant", "constructeur"],
   modele: ["modele", "type"],
   numero_serie: ["serie"],
+  notes: ["note", "observation", "remarque", "commentaire"],
   mise_en_service: ["mise en service", "installation", "date"],
   statut: ["statut", "etat"],
 };
@@ -239,6 +258,7 @@ export function lireTableau(
   tableau: Cellule[][],
   type: TypeImport,
   correspondance?: Correspondance,
+  options: { codeAuto?: boolean } = {},
 ):
   | { erreur: string; lignes?: never; demande?: DemandeCorrespondance }
   | { erreur?: never; lignes: LigneBrute[]; demande?: never } {
@@ -254,7 +274,10 @@ export function lireTableau(
     if (i !== null && i >= 0 && i < entetes.length) position.set(cle, i);
   }
 
-  const manquantes = colonnes.filter((c) => c.obligatoire && !position.has(c.cle));
+  // Avec un préfixe de codes générés, la colonne « code » n'est plus obligatoire.
+  const manquantes = colonnes.filter(
+    (c) => c.obligatoire && !(c.cle === "code" && options.codeAuto) && !position.has(c.cle),
+  );
   if (manquantes.length > 0) {
     return {
       erreur: `Colonne(s) à associer : ${manquantes.map((c) => `« ${c.entete} »`).join(", ")}.`,
@@ -276,7 +299,10 @@ export function lireTableau(
   for (let i = indexEntete + 1; i < tableau.length; i++) {
     if (vide(tableau[i])) continue;
     const valeurs: Record<string, Cellule> = {};
-    for (const [cle, p] of position) valeurs[cle] = tableau[i][p] ?? null;
+    for (const [cle, p] of position) {
+      valeurs[cle] = tableau[i][p] ?? null;
+      if (cle.startsWith("info_")) valeurs[`${cle}_titre`] = entetes[p] || null;
+    }
     lignes.push({ numero: i + 1, valeurs });
   }
   if (lignes.length === 0) return { erreur: "Aucune ligne de données sous l'en-tête." };
@@ -290,7 +316,7 @@ export type Existant = {
   familles: { id: string; libelle: string }[];
   prestataires: { id: string; nom: string }[];
   types: { id: string; famille_id: string; libelle: string; caractere: string; periodicite_mois: number }[];
-  equipements: { id: string; code: string }[];
+  equipements: { id: string; code: string; numero_serie: string | null }[];
   plans: { type_controle_id: string; equipement_id: string | null; perimetre_libelle: string | null }[];
   localisations: { id: string; batiment: string; niveau: string | null; local: string | null }[];
   univers: { id: string; libelle: string }[];
@@ -336,6 +362,7 @@ export type OperationsEquipements = {
     marque: string | null;
     modele: string | null;
     numero_serie: string | null;
+    notes: string | null;
     date_mise_en_service: string | null;
     statut: "en_service" | "hors_service" | "reforme";
   }[];
@@ -523,7 +550,21 @@ export function planifierControles(lignes: LigneBrute[], existant: Existant): Pl
 
 // --- Planification : équipements ------------------------------------------------
 
-export function planifierEquipements(lignes: LigneBrute[], existant: Existant): Planification<OperationsEquipements> {
+export type OptionsEquipements = {
+  /** Identifiant d'un univers existant, appliqué aux lignes dont la colonne « univers » est vide ou absente. */
+  universParDefaut?: string | null;
+  /** Préfixe des codes générés pour les lignes sans code (ex. « FR- » → FR-001, FR-002…). */
+  prefixeCode?: string | null;
+};
+
+/** Préfixe de code valide : 1 à 20 caractères, sans espace ni / \ ? #. */
+export const PREFIXE_CODE_VALIDE = /^[^\s/\\?#]{1,20}$/;
+
+export function planifierEquipements(
+  lignes: LigneBrute[],
+  existant: Existant,
+  options: OptionsEquipements = {},
+): Planification<OperationsEquipements> {
   const aujourdhui = aujourdhuiParis();
   const codes = new Set(existant.equipements.map((e) => normaliser(e.code)));
   const cleLoc = (b: string, n: string | null, l: string | null) => [b, n ?? "", l ?? ""].map(normaliser).join("|");
@@ -552,9 +593,28 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
   const codesFichier = new Set<string>();
   const apercu: LigneApercu[] = [];
 
+  // Codes générés : numérotation continue en sautant les codes déjà pris (existants ou écrits dans le fichier).
+  const prefixe = options.prefixeCode && PREFIXE_CODE_VALIDE.test(options.prefixeCode) ? options.prefixeCode : null;
+  const reserves = new Set([...codes, ...lignes.map((l) => normaliser(texte(l.valeurs.code) ?? ""))]);
+  let compteur = 0;
+  const prochainCode = (): string => {
+    let c: string;
+    do {
+      compteur++;
+      c = `${prefixe}${String(compteur).padStart(3, "0")}`;
+    } while (reserves.has(normaliser(c)));
+    reserves.add(normaliser(c));
+    return c;
+  };
+  // Avec des codes générés, un relevé du même fichier ne doit pas créer de doublons : le n° de série fait foi.
+  const seriesExistantes = new Set(existant.equipements.map((e) => normaliser(e.numero_serie ?? "")).filter(Boolean));
+  const seriesFichier = new Set<string>();
+
   for (const { numero, valeurs: v } of lignes) {
     const erreurs: string[] = [];
-    const code = texte(v.code);
+    const codeSaisi = texte(v.code);
+    const codeAuto = codeSaisi === null && prefixe !== null;
+    const code = codeSaisi;
     const libelle = texte(v.libelle);
     const univers = texte(v.univers);
     const famille = texte(v.famille);
@@ -564,8 +624,20 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     const miseEnService = lireDate(v.mise_en_service);
     const statut = lireEnum(v.statut, STATUTS);
 
-    if (!code) erreurs.push("Code manquant");
+    const serie = texte(v.numero_serie);
+    const notes = [
+      texte(v.notes),
+      ...["info_1", "info_2", "info_3"].map((k) => {
+        const valeur = texte(v[k]);
+        const titre = texte(v[`${k}_titre`]);
+        return valeur ? (titre ? `${titre} : ${valeur}` : valeur) : null;
+      }),
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!code && !codeAuto) erreurs.push("Code manquant");
     if (!libelle) erreurs.push("Libellé manquant");
+    if (notes.length > 2000) erreurs.push("Notes et informations complémentaires : 2 000 caractères maximum");
     // Même règle que la saisie (schemaEquipement) : le code sert dans les adresses et les étiquettes.
     if (code && !/^[^\s/\\?#]+$/.test(code)) erreurs.push("Code : sans espace ni / \\ ? #");
     verifierLongueur(code, MAX_TEXTE.code, "Code", erreurs);
@@ -588,15 +660,29 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     if (statut === undefined) erreurs.push(`Statut « ${texte(v.statut)} » inconnu (en service, hors service, réformé)`);
     if (code && codesFichier.has(normaliser(code))) erreurs.push(`Code « ${code} » en double dans le fichier`);
     if (code) codesFichier.add(normaliser(code));
+    if (codeAuto && serie && seriesFichier.has(normaliser(serie))) {
+      erreurs.push(`N° de série « ${serie} » en double dans le fichier`);
+    }
+    if (serie) seriesFichier.add(normaliser(serie));
 
-    if (erreurs.length > 0 || !code || !libelle) {
+    if (erreurs.length > 0 || (!code && !codeAuto) || !libelle) {
       apercu.push({ numero, statut: "erreur", resume: [code, libelle].filter(Boolean).join(" — "), erreurs });
       continue;
     }
-    if (codes.has(normaliser(code))) {
+    if (code && codes.has(normaliser(code))) {
       apercu.push({ numero, statut: "ignoree", resume: `${code} — ${libelle} : code déjà présent`, erreurs: [] });
       continue;
     }
+    if (codeAuto && serie && seriesExistantes.has(normaliser(serie))) {
+      apercu.push({
+        numero,
+        statut: "ignoree",
+        resume: `${libelle} : n° de série ${serie} déjà présent`,
+        erreurs: [],
+      });
+      continue;
+    }
+    const codeFinal = code ?? prochainCode();
 
     let refLoc: Ref | null = null;
     if (batiment) {
@@ -613,21 +699,26 @@ export function planifierEquipements(lignes: LigneBrute[], existant: Existant): 
     }
 
     ops.equipements.push({
-      code,
+      code: codeFinal,
       libelle,
-      univers: refUnivers(univers),
+      univers: univers || !options.universParDefaut ? refUnivers(univers) : { id: options.universParDefaut },
       famille: refFamille(famille),
       localisation: refLoc,
       marque: texte(v.marque),
       modele: texte(v.modele),
-      numero_serie: texte(v.numero_serie),
+      numero_serie: serie,
+      notes: notes || null,
       date_mise_en_service: miseEnService.valeur,
       statut: statut ?? "en_service",
     });
     apercu.push({
       numero,
       statut: "creation",
-      resume: [`${code} — ${libelle}`, univers, [batiment, niveau, local].filter(Boolean).join(" / ")]
+      resume: [
+        `${codeFinal}${codeAuto ? " (code généré)" : ""} — ${libelle}`,
+        univers,
+        [batiment, niveau, local].filter(Boolean).join(" / "),
+      ]
         .filter(Boolean)
         .join(" · "),
       erreurs: [],

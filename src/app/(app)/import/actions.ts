@@ -12,6 +12,8 @@ import {
   type DemandeCorrespondance,
   planifierControles,
   planifierEquipements,
+  PREFIXE_CODE_VALIDE,
+  type OptionsEquipements,
   type LigneApercu,
   type TypeImport,
 } from "@/lib/metier/import";
@@ -24,7 +26,7 @@ export type Apercu = {
 };
 
 export type ReponseImport =
-  | { erreur: string; demande?: DemandeCorrespondance }
+  | { erreur: string; demande?: DemandeCorrespondance; feuilles?: string[] }
   | { apercu: Apercu; importe?: never; erreur?: never }
   | { importe: string; apercu?: never; erreur?: never };
 
@@ -49,13 +51,35 @@ async function preparer(formData: FormData) {
   if (type !== "controles" && type !== "equipements") return { erreur: "Type d'import inconnu." };
   if (!(fichier instanceof File) || fichier.size === 0) return { erreur: "Choisissez un fichier." };
   if (fichier.size > TAILLE_MAX) return { erreur: "Fichier trop volumineux (5 Mo maximum)." };
-  const { tableau, erreur } = await lireFichier(fichier.name, Buffer.from(await fichier.arrayBuffer()));
-  if (erreur || !tableau) return { erreur: erreur ?? "Fichier illisible." };
+  const feuille = formData.get("feuille");
+  const { tableau, erreur, feuilles } = await lireFichier(
+    fichier.name,
+    Buffer.from(await fichier.arrayBuffer()),
+    typeof feuille === "string" && feuille !== "" && feuille.length <= 100 ? feuille : undefined,
+  );
+  if (erreur || !tableau) return { erreur: erreur ?? "Fichier illisible.", feuilles };
   const correspondance = lireCorrespondance(formData.get("correspondance"));
   if (correspondance === "invalide") return { erreur: "Correspondance de colonnes invalide." };
-  const lu = lireTableau(tableau, type as TypeImport, correspondance);
+
+  // Options propres aux équipements : univers commun à toutes les lignes, codes générés.
+  const prefixe =
+    typeof formData.get("prefixe_code") === "string" ? (formData.get("prefixe_code") as string).trim() : "";
+  if (type === "equipements" && prefixe !== "" && !PREFIXE_CODE_VALIDE.test(prefixe)) {
+    return { erreur: "Préfixe de code invalide : 20 caractères maximum, sans espace ni / \ ? #." };
+  }
+  const universBrut = formData.get("univers_defaut");
+  const universParDefaut =
+    type === "equipements" && typeof universBrut === "string" && z.uuid().safeParse(universBrut).success
+      ? universBrut
+      : null;
+  const options: OptionsEquipements = {
+    prefixeCode: type === "equipements" && prefixe !== "" ? prefixe : null,
+    universParDefaut,
+  };
+
+  const lu = lireTableau(tableau, type as TypeImport, correspondance, { codeAuto: options.prefixeCode !== null });
   if (lu.erreur) return { erreur: lu.erreur, demande: lu.demande };
-  return { type: type as TypeImport, lignes: lu.lignes };
+  return { type: type as TypeImport, lignes: lu.lignes, options };
 }
 
 type Operations =
@@ -94,7 +118,13 @@ export async function analyserImport(formData: FormData): Promise<ReponseImport>
         const plan =
           prepare.type === "controles"
             ? planifierControles(prepare.lignes!, existant)
-            : planifierEquipements(prepare.lignes!, existant);
+            : planifierEquipements(prepare.lignes!, existant, prepare.options);
+        if (
+          prepare.options?.universParDefaut &&
+          !existant.univers.some((u) => u.id === prepare.options?.universParDefaut)
+        ) {
+          return { erreur: "L'univers choisi n'existe plus : rechargez la page." };
+        }
         return {
           apercu: {
             lignes: plan.lignes,
@@ -125,7 +155,7 @@ export async function importer(formData: FormData): Promise<ReponseImport> {
           const r = await executerControles(tx, plan.operations);
           return `Import terminé : ${compter(r.plans, "plan de contrôle", "plans de contrôle")}, ${compter(r.types, "type", "types")}, ${compter(r.controles, "dernier contrôle", "derniers contrôles")}.`;
         }
-        const plan = planifierEquipements(prepare.lignes!, existant);
+        const plan = planifierEquipements(prepare.lignes!, existant, prepare.options);
         if (!plan.importable) return null;
         const r = await executerEquipements(tx, plan.operations);
         return `Import terminé : ${compter(r.equipements, "équipement", "équipements")}, ${compter(r.univers, "univers créé", "univers créés")}, ${compter(r.localisations, "localisation", "localisations")}.`;

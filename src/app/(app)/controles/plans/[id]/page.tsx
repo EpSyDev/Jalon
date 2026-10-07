@@ -73,7 +73,7 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
         <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
           <LienBouton href={`/controles/saisie?plan=${plan.id}`} className="h-14 text-base">
             <ClipboardPlus className="size-5" aria-hidden />
-            J&apos;ai fait le contrôle
+            Contrôle effectué
           </LienBouton>
           <LienBouton href={`/controles/plans/${plan.id}/modifier`} variante="outline" className="h-14 text-base">
             Modifier le plan

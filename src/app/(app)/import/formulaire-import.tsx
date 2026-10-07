@@ -10,8 +10,8 @@ import type { Correspondance, DemandeCorrespondance } from "@/lib/metier/import"
 import { analyserImport, importer, type Apercu } from "./actions";
 
 const TYPES = [
+  { valeur: "equipements", libelle: "Équipements (fauteuils, matériel biomédical, etc.)" },
   { valeur: "controles", libelle: "Contrôles (annexe A)" },
-  { valeur: "equipements", libelle: "Équipements" },
 ] as const;
 
 const STATUTS = {
@@ -20,7 +20,10 @@ const STATUTS = {
   erreur: { libelle: "Erreur", icone: CircleAlert, classe: "text-destructive" },
 } as const;
 
-export function FormulaireImport() {
+export function FormulaireImport({ univers }: { univers: { id: string; libelle: string }[] }) {
+  const [type, setType] = useState<"controles" | "equipements">("controles");
+  // Classeur à plusieurs feuilles : l'utilisateur choisit celle à importer.
+  const [feuilles, setFeuilles] = useState<string[] | null>(null);
   const formulaire = useRef<HTMLFormElement>(null);
   const [apercu, setApercu] = useState<Apercu | null>(null);
   const [message, setMessage] = useState<{ ton: "erreur" | "succes"; texte: string } | null>(null);
@@ -49,6 +52,7 @@ export function FormulaireImport() {
             texte: "Je n'ai pas reconnu toutes les colonnes obligatoires : associez-les ci-dessous.",
           });
         } else {
+          setFeuilles(r.feuilles ?? null);
           setMessage({ ton: "erreur", texte: r.erreur });
         }
       } else if (r.importe) {
@@ -72,7 +76,11 @@ export function FormulaireImport() {
       <form
         ref={formulaire}
         className="grid gap-4 rounded-lg border bg-card p-4"
-        onChange={() => {
+        onChange={(e) => {
+          const cible = e.target as unknown as HTMLInputElement;
+          if (cible.name === "type") setType(cible.value as "controles" | "equipements");
+          if (cible.name === "feuille") return;
+          setFeuilles(null);
           setApercu(null);
           setDemande(null);
           setCorrespondance(null);
@@ -93,18 +101,69 @@ export function FormulaireImport() {
           ))}
         </fieldset>
         <div className="grid gap-2">
-          <Label htmlFor="fichier">Fichier .xlsx ou .csv (5 Mo maximum)</Label>
+          <Label htmlFor="fichier">Fichier .xlsx, .xlsm ou .csv (5 Mo maximum)</Label>
           <input
             id="fichier"
             name="fichier"
             type="file"
             required
-            accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+            accept=".xlsx,.xlsm,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
             className="w-full min-w-0 rounded-lg border p-3 text-base file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5"
           />
         </div>
+        {feuilles && (
+          <div className="grid gap-2">
+            <Label htmlFor="feuille">Feuille à importer</Label>
+            <NativeSelect id="feuille" name="feuille" defaultValue={feuilles[0]} className="w-full [&_select]:h-12">
+              {feuilles.map((f) => (
+                <NativeSelectOption key={f} value={f}>
+                  {f}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        )}
+        {type === "equipements" && (
+          <fieldset className="grid gap-4 rounded-lg border border-dashed p-4">
+            <legend className="px-2 text-sm font-medium">Si le fichier n&apos;a pas ces informations</legend>
+            <div className="grid gap-2">
+              <Label htmlFor="univers_defaut">Univers de tous ces équipements</Label>
+              <NativeSelect
+                id="univers_defaut"
+                name="univers_defaut"
+                defaultValue=""
+                className="w-full [&_select]:h-12"
+              >
+                <NativeSelectOption value="">Selon la colonne « Univers » du fichier, sinon aucun</NativeSelectOption>
+                {univers.map((u) => (
+                  <NativeSelectOption key={u.id} value={u.id}>
+                    {u.libelle}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              <span className="text-xs text-muted-foreground">
+                Ex. : choisissez « FAUTEUILS ROULANTS » : chaque ligne y sera rangée.
+              </span>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="prefixe_code">Préfixe des codes à générer</Label>
+              <input
+                id="prefixe_code"
+                name="prefixe_code"
+                maxLength={20}
+                autoComplete="off"
+                placeholder="Ex. : FR-"
+                className="h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base"
+              />
+              <span className="text-xs text-muted-foreground">
+                Facultatif. Les lignes sans code reçoivent FR-001, FR-002… Le numéro de série (s&apos;il existe) évite
+                les doublons si vous réimportez le fichier ; sans numéro de série, importez-le une seule fois.
+              </span>
+            </div>
+          </fieldset>
+        )}
         <Button type="submit" disabled={enCours} className="h-12 text-base">
-          {enCours && !apercu ? "Analyse…" : "Analyser le fichier"}
+          {enCours && !apercu ? "Analyse…" : feuilles ? "Analyser cette feuille" : "Analyser le fichier"}
         </Button>
       </form>
 
