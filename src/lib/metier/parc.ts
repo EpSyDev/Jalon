@@ -1,24 +1,10 @@
 // Parc matériel : schémas de saisie et synthèse des statuts d'un équipement.
 
 import { z } from "zod";
+import { texteOptionnel, uuidOptionnel } from "./saisie";
 import { aujourdhuiParis, type StatutEcheance } from "./echeance";
 
 export const STATUTS_EQUIPEMENT = ["en_service", "hors_service", "reforme"] as const;
-
-const texteOptionnel = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `${max} caractères maximum`)
-    .transform((v) => (v === "" ? null : v))
-    .nullable()
-    .default(null);
-
-const uuidOptionnel = z
-  .union([z.uuid(), z.literal("")])
-  .transform((v) => (v === "" ? null : v))
-  .nullable()
-  .default(null);
 
 export const schemaEquipement = z.object({
   code: z
