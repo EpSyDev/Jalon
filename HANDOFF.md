@@ -25,6 +25,25 @@
 > déplacements groupés, PWA/hors ligne, 2FA pour tous, tests Playwright automatisés, format .xls (non pris en charge,
 > demande une dépendance : à décider).
 >
+> **Prochain chantier (décidé avec Nico le 08/10/2026) : lecture de fichiers au maximum.** Attendre que Nico fournisse
+> des fichiers réels, anonymisés et sans donnée patient : l'Excel des fauteuils roulants, celui du matériel
+> biomédical, et un rapport de contrôle réglementaire Veritas en PDF (page de garde avec le nombre de réserves, puis
+> le détail). Ne rien deviner sans eux.
+> 1. **Import Excel** : reprendre automatiquement toutes les colonnes non reconnues dans les notes (aujourd'hui 3
+>    « informations complémentaires » au maximum) ; gérer les en-têtes sur plusieurs lignes et les cellules fusionnées ;
+>    ignorer les lignes de total ; mémoriser l'association des colonnes pour un fichier du même modèle ; régler le
+>    repérage des colonnes sur les vrais fichiers. Code : `src/lib/metier/import.ts` (règles pures, testées),
+>    `src/lib/import/fichier.ts` (lecture), `src/app/(app)/import/` (écrans).
+> 2. **Import de rapport PDF** : écran de pré-remplissage (jamais d'enregistrement automatique) : l'utilisateur dépose
+>    le PDF, Jalon retrouve le plan de contrôle et propose date, résultat, nombre de réserves (page de garde) et liste
+>    détaillée (description, gravité, échéance de levée si elles sont écrites), signale tout écart (« page de garde : 7,
+>    détail : 6 »), l'utilisateur corrige puis valide ; création du contrôle et des réserves, nom du fichier en
+>    `reference_rapport`. Ne pas stocker le PDF (pas d'upload sans feu vert DSI). Démarrer par une extraction à règles
+>    dans l'application (texte du PDF, sans service externe) sur les rapports Veritas ; un PDF scanné demande un OCR.
+>    Une lecture par IA (API Claude) lirait toutes les mises en page mais fait sortir le contenu vers un service
+>    externe : seulement avec l'accord de la DSI, hébergement UE vérifié, aucune donnée patient. Dire honnêtement à
+>    Nico si les règles tiennent sans IA.
+>
 > **Pièges de cette session** : les heredocs shell avec apostrophes échouent (utiliser Write/Edit ou un script .cjs
 > dans le scratchpad) ; après chaque nouvelle route `npx next typegen` ; `git add` ciblé (jamais `-A` à la racine).
 
