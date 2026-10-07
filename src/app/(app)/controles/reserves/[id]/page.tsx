@@ -58,7 +58,7 @@ export default async function PageReserve({ params }: PageProps<"/controles/rese
           className="h-12 text-base"
         >
           <Wrench className="size-4" aria-hidden />
-          Créer l'intervention pour la lever
+          Créer l&apos;intervention pour la lever
         </LienBouton>
       )}
       {reserve.statut === "ouverte" && (
