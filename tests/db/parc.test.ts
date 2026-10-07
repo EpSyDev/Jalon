@@ -212,3 +212,26 @@ describe("création d'un contrôle complet (pilote postgres)", () => {
     expect(r.conflit.erreur).toMatch(/existe déjà dans cette famille \(12 mois/);
   });
 });
+
+describe("intervention depuis une réserve (pilote postgres)", () => {
+  it("préremplit titre, priorité selon la gravité, plan, équipement et prestataire ; interventions liées au plan", async () => {
+    const { prefillDepuisReserve } = await import("@/lib/requetes/intervention-depuis-reserve");
+    const { interventionsDuPlan } = await import("@/lib/requetes/interventions");
+    const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      const [res] = await tx<{ id: string; plan: string }[]>`
+        select r.id, c.plan_controle_id as plan from public.reserves r join public.controles c on c.id = r.controle_id limit 1`;
+      await tx`update public.reserves set gravite = 'majeure', description = 'Câble à remplacer' where id = ${res.id}`;
+      const prefill = await prefillDepuisReserve(tx, res.id);
+      await tx`insert into public.interventions (titre, plan_controle_id) values ('Lever', ${res.plan})`;
+      return {
+        prefill,
+        liees: await interventionsDuPlan(tx, res.plan),
+        inconnue: await prefillDepuisReserve(tx, "pas-un-uuid"),
+      };
+    });
+    expect(r.prefill).toMatchObject({ priorite: "haute", description: "Câble à remplacer" });
+    expect(r.prefill?.titre).toMatch(/^Lever la réserve — /);
+    expect(r.liees.map((i) => i.titre)).toContain("Lever");
+    expect(r.inconnue).toBeNull();
+  });
+});

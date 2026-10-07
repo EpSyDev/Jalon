@@ -8,7 +8,9 @@ import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_CARACTERE, LIBELLES_GRAVITE, LIBELLES_RESULTAT } from "@/lib/format";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
+import { LIBELLES_STATUT_INTERVENTION } from "@/lib/metier/interventions";
 import { historiqueControles, lirePlan, reservesDuPlan } from "@/lib/requetes/controles";
+import { interventionsDuPlan } from "@/lib/requetes/interventions";
 import { archiverControle, leverReserve, rouvrirReserve } from "../../actions";
 import { HistoriqueFiche } from "@/components/journal";
 import { HISTORIQUE_VIDE, historiqueFiche } from "@/lib/requetes/journal";
@@ -31,16 +33,17 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
   const donnees = await requete(async (tx, u) => {
     const plan = await lirePlan(tx, id);
     if (!plan) return null;
-    const [controles, reserves, journal] = await Promise.all([
+    const [controles, reserves, interventions, journal] = await Promise.all([
       historiqueControles(tx, id),
       reservesDuPlan(tx, id),
+      interventionsDuPlan(tx, id),
       u.role === "admin" ? historiqueFiche(tx, "plans_controle", id) : HISTORIQUE_VIDE,
     ]);
-    return { plan, controles, reserves, journal, role: u.role };
+    return { plan, controles, reserves, interventions, journal, role: u.role };
   });
   if (!donnees) notFound();
 
-  const { plan, controles, reserves, journal, role } = donnees;
+  const { plan, controles, reserves, interventions, journal, role } = donnees;
   const peutEcrire = role !== "lecture";
   const aujourdhui = aujourdhuiParis();
   const ouvertes = reserves.filter((r) => r.statut === "ouverte");
@@ -154,6 +157,28 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
                     confirmation="Rouvrir cette réserve ?"
                   />
                 )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {interventions.length > 0 && (
+        <section className="grid gap-2">
+          <h2 className="text-lg font-semibold">Interventions liées ({interventions.length})</h2>
+          <ul className="grid gap-2">
+            {interventions.map((i) => (
+              <li key={i.id}>
+                <Link
+                  href={`/interventions/${i.id}`}
+                  className="grid gap-0.5 rounded-lg border bg-card p-3 text-sm hover:bg-muted/50"
+                >
+                  <span className="font-medium">{i.titre}</span>
+                  <span className="text-muted-foreground">
+                    {LIBELLES_STATUT_INTERVENTION[i.statut]} · demandée le {formaterDate(i.date_demande)}
+                    {i.date_prevue && ` · prévue le ${formaterDate(i.date_prevue)}`}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>

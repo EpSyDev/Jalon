@@ -140,3 +140,20 @@ export function responsablesPossibles(tx: Tx) {
   return tx<Option[]>`select id, nom as libelle from public.profils
     where archive_le is null and role in ('admin', 'technicien') order by nom`;
 }
+
+export type InterventionLiee = {
+  id: string;
+  titre: string;
+  statut: "a_faire" | "en_cours" | "en_attente" | "terminee" | "annulee";
+  priorite: "basse" | "normale" | "haute" | "urgente";
+  date_demande: string;
+  date_prevue: string | null;
+};
+
+/** Interventions rattachées à un plan de contrôle (ex. : pour lever une réserve), ouvertes d'abord. */
+export function interventionsDuPlan(tx: Tx, planId: string) {
+  return tx<InterventionLiee[]>`
+    select id, titre, statut, priorite, date_demande, date_prevue from public.interventions
+    where plan_controle_id = ${planId} and archive_le is null
+    order by (statut in ('terminee', 'annulee')), date_demande desc limit 20`;
+}

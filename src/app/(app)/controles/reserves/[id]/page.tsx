@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ChampListe, ChampTexte, ChampZoneTexte, versOptions } from "@/components/champs";
+import { Wrench } from "lucide-react";
 import { Formulaire } from "@/components/formulaire";
+import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_GRAVITE } from "@/lib/format";
 import { lireReserve } from "@/lib/requetes/controles";
@@ -49,6 +51,16 @@ export default async function PageReserve({ params }: PageProps<"/controles/rese
         />
         <ChampZoneTexte nom="commentaire" libelle="Commentaire" defaultValue={reserve.commentaire ?? ""} />
       </Formulaire>
+      {reserve.statut === "ouverte" && (
+        <LienBouton
+          href={`/interventions/nouvelle?reserve=${reserve.id}`}
+          variante="outline"
+          className="h-12 text-base"
+        >
+          <Wrench className="size-4" aria-hidden />
+          Créer l'intervention pour la lever
+        </LienBouton>
+      )}
       {reserve.statut === "ouverte" && (
         <section className="grid gap-3 rounded-lg border bg-card p-4">
           <h2 className="font-semibold">Levée à une autre date</h2>

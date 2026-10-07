@@ -15,7 +15,15 @@ export function ChampsIntervention({
 }: {
   options: Options;
   intervention?: InterventionDetail;
-  defauts?: { equipement_id?: string; plan_controle_id?: string; chantier_id?: string };
+  defauts?: {
+    equipement_id?: string;
+    plan_controle_id?: string;
+    chantier_id?: string;
+    prestataire_id?: string;
+    titre?: string;
+    description?: string;
+    priorite?: string;
+  };
 }) {
   // Un lien existant vers un chantier clos reste sélectionnable en modification.
   const chantiers =
@@ -32,14 +40,14 @@ export function ChampsIntervention({
         libelle="Titre"
         required
         maxLength={200}
-        defaultValue={intervention?.titre}
+        defaultValue={intervention?.titre ?? defauts.titre}
         placeholder="Ex. : fuite sur vanne d'arrêt"
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <ChampListe
           nom="priorite"
           libelle="Priorité"
-          defaultValue={intervention?.priorite ?? "normale"}
+          defaultValue={intervention?.priorite ?? defauts.priorite ?? "normale"}
           options={versOptions(LIBELLES_PRIORITE)}
         />
         <ChampListe
@@ -56,7 +64,11 @@ export function ChampsIntervention({
         vide="Aucun"
         options={liste(options.equipements)}
       />
-      <ChampZoneTexte nom="description" libelle="Description" defaultValue={intervention?.description ?? ""} />
+      <ChampZoneTexte
+        nom="description"
+        libelle="Description"
+        defaultValue={intervention?.description ?? defauts.description ?? ""}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
         <ChampListe
           nom="assignee_id"
@@ -75,7 +87,7 @@ export function ChampsIntervention({
       <ChampListe
         nom="prestataire_id"
         libelle="Prestataire"
-        defaultValue={intervention?.prestataire_id ?? ""}
+        defaultValue={intervention?.prestataire_id ?? defauts.prestataire_id ?? ""}
         vide="Aucun (réalisée en interne)"
         options={liste(options.prestataires)}
       />
