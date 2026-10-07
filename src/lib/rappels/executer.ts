@@ -1,6 +1,6 @@
 import "server-only";
 import { avecServiceRole } from "@/lib/db";
-import { lireEnvRappels } from "@/lib/env";
+import { lireEnvRappels, type EnvRappels } from "@/lib/env";
 import { composerMail } from "@/lib/mail/composer";
 import { envoyerMail } from "@/lib/mail/envoi";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
@@ -13,11 +13,26 @@ import {
   type Rappel,
 } from "@/lib/metier/rappels";
 
-export type BilanRappels = { envoye: boolean; rappels: number; recap: boolean; message: string };
+export type BilanRappels = {
+  statut: "envoye" | "rien" | "sans_destinataire" | "non_configure";
+  envoye: boolean;
+  rappels: number;
+  recap: boolean;
+  message: string;
+};
+
+/** Configuration des mails, ou le message expliquant pourquoi elle est inutilisable. */
+function configurationMails(): { env: EnvRappels; erreur?: never } | { env?: never; erreur: string } {
+  try {
+    return { env: lireEnvRappels() };
+  } catch (e) {
+    return { erreur: (e as Error).message };
+  }
+}
 
 /** Exécution complète : lecture, calcul, un seul mail, enregistrement après succès uniquement. */
 export async function executerRappels(): Promise<BilanRappels> {
-  const env = lireEnvRappels();
+  const config = configurationMails();
   const aujourdhui = aujourdhuiParis();
 
   const { entree, destinataires } = await avecServiceRole(async (tx) => {
@@ -37,7 +52,7 @@ export async function executerRappels(): Promise<BilanRappels> {
         from public.contrats c join public.prestataires p on p.id = c.prestataire_id
         where c.archive_le is null and c.date_fin is not null`,
       tx<EntreeRappels["reserves"]>`
-        select r.id, r.description, pl.id as plan_id, t.libelle as plan_libelle, r.echeance_levee
+        select r.id, r.gravite, pl.id as plan_id, t.libelle as plan_libelle, r.echeance_levee
         from public.reserves r
         join public.controles c on c.id = r.controle_id and c.archive_le is null
         join public.plans_controle pl on pl.id = c.plan_controle_id and pl.archive_le is null and pl.actif
@@ -66,10 +81,19 @@ export async function executerRappels(): Promise<BilanRappels> {
 
   const resultat = calculerRappels(entree);
   const bilan = { rappels: resultat.rappels.length, recap: resultat.recap !== null };
-  if (!bilan.rappels && !bilan.recap) return { ...bilan, envoye: false, message: "Rien à envoyer aujourd'hui." };
-  if (destinataires.length === 0) {
-    return { ...bilan, envoye: false, message: "Aucun destinataire configuré : rien n'a été envoyé." };
+  if (!bilan.rappels && !bilan.recap) {
+    return { ...bilan, statut: "rien", envoye: false, message: "Rien à envoyer aujourd'hui." };
   }
+  if (destinataires.length === 0) {
+    const message = "Aucun destinataire configuré : rien n'a été envoyé.";
+    return { ...bilan, statut: "sans_destinataire", envoye: false, message };
+  }
+  if (config.erreur !== undefined) {
+    // Rien n'est enregistré : les rappels partiront dès que la configuration sera complète.
+    console.warn(`Rappels non envoyés : ${config.erreur}`);
+    return { ...bilan, statut: "non_configure", envoye: false, message: `Mails non configurés. ${config.erreur}` };
+  }
+  const { env } = config;
 
   await envoyerMail(env, destinataires, composerMail(resultat, env.APP_URL));
 
@@ -78,5 +102,5 @@ export async function executerRappels(): Promise<BilanRappels> {
     await tx`insert into public.rappels_envoyes ${tx(lignes)} on conflict do nothing`;
   });
   const nb = destinataires.length;
-  return { ...bilan, envoye: true, message: `Mail envoyé à ${nb} destinataire${nb > 1 ? "s" : ""}.` };
+  return { ...bilan, statut: "envoye", envoye: true, message: `Mail envoyé à ${nb} destinataire${nb > 1 ? "s" : ""}.` };
 }

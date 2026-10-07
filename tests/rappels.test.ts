@@ -3,6 +3,7 @@ import {
   aEnregistrer,
   calculerRappels,
   cleRappel,
+  libelleReserve,
   normaliserSeuils,
   seuilAtteint,
   type EntreeRappels,
@@ -93,10 +94,23 @@ describe("calculerRappels", () => {
   it("réserves : seuil sur l'échéance de levée", () => {
     const r = calculerRappels(
       base({
-        reserves: [{ id: "r", description: "Câble", plan_id: "p", plan_libelle: "Élec", echeance_levee: "2026-10-30" }],
+        reserves: [
+          { id: "r", gravite: "majeure" as const, plan_id: "p", plan_libelle: "Élec", echeance_levee: "2026-10-30" },
+        ],
       }),
     );
     expect(r.rappels[0]).toMatchObject({ cible_type: "reserve", seuil: "J30" });
+  });
+
+  it("réserves : le libellé du mail ne reprend jamais le texte libre", () => {
+    const r = calculerRappels(
+      base({
+        aujourdhui: LUNDI,
+        reserves: [{ id: "r", gravite: null, plan_id: "p", plan_libelle: "Élec", echeance_levee: "2026-10-01" }],
+      }),
+    );
+    expect(r.recap?.lignes[0].libelle).toBe("Réserve — Élec");
+    expect(libelleReserve({ gravite: "critique", plan_libelle: "SSI" })).toBe("Réserve critique — SSI");
   });
 });
 
@@ -121,7 +135,9 @@ describe("récapitulatif hebdomadaire", () => {
           plan("b", null, "jamais_controle"),
           plan("c", "2027-01-01", "a_jour"),
         ],
-        reserves: [{ id: "r", description: "Câble", plan_id: "a", plan_libelle: "Élec", echeance_levee: "2026-09-30" }],
+        reserves: [
+          { id: "r", gravite: "majeure" as const, plan_id: "a", plan_libelle: "Élec", echeance_levee: "2026-09-30" },
+        ],
         contrats: [{ id: "k", objet: "Ancien contrat", prestataire: "P", date_fin: "2026-09-30", preavis_jours: 30 }],
       }),
     );

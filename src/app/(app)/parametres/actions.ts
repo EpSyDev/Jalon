@@ -105,7 +105,9 @@ export async function lancerRappels(): Promise<Resultat> {
     await requete(async () => undefined, ["admin"]);
     const bilan = await executerRappels();
     revalidatePath("/parametres", "layout");
-    return bilan.envoye ? { message: bilan.message } : { erreur: bilan.message };
+    return bilan.statut === "envoye" || bilan.statut === "rien"
+      ? { message: bilan.message }
+      : { erreur: bilan.message };
   } catch (e) {
     unstable_rethrow(e);
     console.error("Rappels manuels en échec :", (e as Error).message);

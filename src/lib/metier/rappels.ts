@@ -30,7 +30,14 @@ export type EntreeRappels = {
     statut: "jamais_controle" | "en_retard" | "a_echeance" | "a_jour";
   }[];
   contrats: { id: string; objet: string; prestataire: string; date_fin: string | null; preavis_jours: number | null }[];
-  reserves: { id: string; description: string; plan_id: string; plan_libelle: string; echeance_levee: string | null }[];
+  /** Pas de description : texte libre, jamais repris dans un mail. */
+  reserves: {
+    id: string;
+    gravite: "mineure" | "majeure" | "critique" | null;
+    plan_id: string;
+    plan_libelle: string;
+    echeance_levee: string | null;
+  }[];
   /** Clés « cible_type|cible_id|seuil|echeance » déjà enregistrées. */
   dejaEnvoyes: Set<string>;
 };
@@ -44,6 +51,11 @@ export const cleRappel = (r: Pick<Rappel, "cible_type" | "cible_id" | "seuil" | 
   `${r.cible_type}|${r.cible_id ?? ""}|${r.seuil}|${r.echeance}`;
 
 const fr = (iso: string) => iso.split("-").reverse().join("/");
+
+/** Libellé de réserve pour les mails : jamais la description saisie (texte libre). */
+export function libelleReserve(r: Pick<EntreeRappels["reserves"][number], "gravite" | "plan_libelle">): string {
+  return `Réserve${r.gravite ? ` ${r.gravite}` : ""} — ${r.plan_libelle}`;
+}
 
 /**
  * Seuil le plus urgent atteint pour une échéance à venir (ou du jour).
@@ -104,7 +116,7 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
         cible_id: r.id,
         seuil,
         echeance: r.echeance_levee,
-        libelle: r.description,
+        libelle: libelleReserve(r),
         detail: `${r.plan_libelle} · à lever avant le ${fr(r.echeance_levee)}`,
         lien: `/controles/plans/${r.plan_id}`,
       });
@@ -130,7 +142,7 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
     for (const r of e.reserves) {
       if (r.echeance_levee && r.echeance_levee < e.aujourdhui) {
         lignes.push({
-          libelle: r.description,
+          libelle: libelleReserve(r),
           detail: `réserve à lever depuis le ${fr(r.echeance_levee)}`,
           lien: `/controles/plans/${r.plan_id}`,
         });
