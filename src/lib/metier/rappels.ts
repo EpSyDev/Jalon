@@ -3,6 +3,7 @@
 
 import { differenceInCalendarDays, getISODay, parseISO } from "date-fns";
 import { alerteContrat, limitePreavis } from "./contrats";
+import { formaterValeur, horsSeuil, libelleSeuils, prochainReleve, statutReleve } from "./releves";
 import { depuisJours, interventionEnRetard, messageRetardChantier, retardChantier } from "./retards";
 
 export type CibleRappel = "plan_controle" | "contrat" | "reserve" | "recap_hebdo";
@@ -51,6 +52,17 @@ export type EntreeRappels = {
   }[];
   /** Message d'alerte sur la sauvegarde (null = récente). Une panne de sauvegarde se lit au récapitulatif. */
   alerteSauvegarde?: string | null;
+  /** Points de relevé actifs avec leur dernier relevé (retards et valeurs hors seuil au récapitulatif). */
+  releves?: {
+    id: string;
+    libelle: string;
+    unite: string | null;
+    periodicite_jours: number;
+    dernier_releve: string | null;
+    derniere_valeur: number | null;
+    seuil_min: number | null;
+    seuil_max: number | null;
+  }[];
   /** Clés « cible_type|cible_id|seuil|echeance » déjà enregistrées. */
   dejaEnvoyes: Set<string>;
 };
@@ -187,6 +199,27 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
           libelle: c.titre,
           detail: `chantier : ${messageRetardChantier(c, retard, e.aujourdhui).toLowerCase()}`,
           lien: `/chantiers/${c.id}`,
+        });
+      }
+    }
+    for (const r of e.releves ?? []) {
+      const statut = statutReleve(r.dernier_releve, r.periodicite_jours, e.aujourdhui);
+      if (statut === "en_retard" || statut === "jamais") {
+        lignes.push({
+          libelle: r.libelle,
+          detail:
+            statut === "jamais"
+              ? "relevé jamais effectué"
+              : `relevé attendu depuis le ${fr(prochainReleve(r.dernier_releve, r.periodicite_jours)!)}`,
+          lien: `/releves/${r.id}`,
+        });
+      }
+      const depasse = r.derniere_valeur === null ? null : horsSeuil(r.derniere_valeur, r.seuil_min, r.seuil_max);
+      if (depasse && r.derniere_valeur !== null) {
+        lignes.push({
+          libelle: r.libelle,
+          detail: `dernière valeur ${formaterValeur(r.derniere_valeur, r.unite)} ${depasse === "bas" ? "sous" : "au-dessus de"} la limite (${libelleSeuils(r.seuil_min, r.seuil_max, r.unite)})`,
+          lien: `/releves/${r.id}`,
         });
       }
     }

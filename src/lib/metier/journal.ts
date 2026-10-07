@@ -25,6 +25,8 @@ export const LIBELLES_TABLE: Record<string, string> = {
   reserves: "Réserve",
   prestataires: "Prestataire",
   contacts: "Contact",
+  points_releve: "Point de relevé",
+  releves: "Relevé",
   contrats: "Contrat",
   interventions: "Intervention",
   chantiers: "Chantier",
@@ -105,6 +107,11 @@ const LIBELLES_CHAMP: Record<string, string> = {
   date_mouvement: "Date",
   unite: "Unité",
   seuil_alerte: "Seuil d'alerte",
+  seuil_min: "Seuil minimal",
+  seuil_max: "Seuil maximal",
+  periodicite_jours: "Périodicité (jours)",
+  date_releve: "Date du relevé",
+  point_id: "Point de relevé",
 };
 
 /** Valeurs codées (statuts, résultats, rôles…) : libellé affiché. */
@@ -240,6 +247,10 @@ export function lienEnregistrement(e: Pick<Entree, "table_cible" | "enregistreme
       return `/controles/reserves/${id}`;
     case "types_controle":
       return `/controles/types/${id}`;
+    case "points_releve":
+      return `/releves/${id}`;
+    case "releves":
+      return champ("point_id") && `/releves/${champ("point_id")}`;
     case "contacts":
       return `/contacts/${id}`;
     case "contrats":

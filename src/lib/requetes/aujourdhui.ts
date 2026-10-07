@@ -1,6 +1,7 @@
 import "server-only";
 import type { Tx } from "@/lib/db";
 import { listerPlans } from "@/lib/requetes/controles";
+import { listerPoints } from "@/lib/requetes/releves";
 
 export type ReserveOuverte = {
   id: string;
@@ -43,7 +44,7 @@ export type ContratSuivi = {
 
 /** Toutes les données de l'écran « Aujourd'hui », en une transaction. */
 export async function donneesAujourdhui(tx: Tx) {
-  const [plans, reserves, interventions, chantiers, contrats, [seuil]] = await Promise.all([
+  const [plans, reserves, interventions, chantiers, contrats, [seuil], points] = await Promise.all([
     listerPlans(tx),
     tx<ReserveOuverte[]>`
       select r.id, r.description, r.gravite, r.echeance_levee, p.id as plan_controle_id, t.libelle as type_libelle,
@@ -79,12 +80,14 @@ export async function donneesAujourdhui(tx: Tx) {
         coalesce((select (valeur #>> '{}')::int from public.parametres where cle = 'seuil_a_echeance_jours'), 60) as jours,
         coalesce((select jsonb_array_length(valeur) from public.parametres
           where cle = 'destinataires_rappels' and jsonb_typeof(valeur) = 'array'), 0) as destinataires`,
+    listerPoints(tx, true),
   ]);
   return {
     plans,
     reserves,
     interventions,
     chantiers,
+    points,
     contrats,
     seuilJours: seuil.jours,
     destinataires: seuil.destinataires,
