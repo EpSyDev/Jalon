@@ -4,6 +4,7 @@
 
 import { isValid, parse } from "date-fns";
 import { aujourdhuiParis } from "./echeance";
+import { masquerNoms } from "./noms";
 
 export type Cellule = string | number | boolean | Date | null;
 export type TypeImport = "controles" | "equipements";
@@ -114,10 +115,11 @@ export function normaliser(texte: string): string {
 
 // --- Conversion des cellules ---------------------------------------------------
 
+/** Texte d'une cellule ; les noms de personnes précédés d'un titre sont réduits à l'initiale (« Dr R. »). */
 function texte(c: Cellule | undefined): string | null {
   if (c === null || c === undefined) return null;
   const t = (c instanceof Date ? c.toISOString().slice(0, 10) : String(c)).trim();
-  return t === "" ? null : t;
+  return t === "" ? null : masquerNoms(t);
 }
 
 /** Date Excel (objet Date en UTC) ou texte JJ/MM/AAAA ou AAAA-MM-JJ → AAAA-MM-JJ. */
