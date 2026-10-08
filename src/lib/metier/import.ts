@@ -62,7 +62,12 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
       obligatoire: true,
       aide: "Identifiant unique et lisible (ex. : TGBT-A). Facultatif si vous indiquez un préfixe pour générer les codes.",
     },
-    { cle: "libelle", entete: "Libellé", obligatoire: true, aide: "Désignation de l'équipement." },
+    {
+      cle: "libelle",
+      entete: "Libellé",
+      alias: ["designation"],
+      aide: "Désignation de l'équipement. À défaut : marque et modèle (ex. : INVACARE Action 2 NG).",
+    },
     {
       cle: "univers",
       entete: "Univers",
@@ -88,15 +93,12 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
       alias: ["observation", "observations", "remarque", "remarques", "commentaire"],
       aide: "Facultatif. Texte repris tel quel dans les notes de l'équipement.",
     },
-    {
-      cle: "info_1",
-      entete: "Information complémentaire 1",
-      aide: "Facultatif. Toute autre colonne utile (n° d'inventaire, service…) : ajoutée aux notes avec le titre de la colonne.",
-    },
-    { cle: "info_2", entete: "Information complémentaire 2", aide: "Facultatif. Idem." },
-    { cle: "info_3", entete: "Information complémentaire 3", aide: "Facultatif. Idem." },
   ],
 };
+
+/** Aide affichée avec le modèle et l'association : le sort des colonnes que Jalon ne connaît pas. */
+export const AIDE_AUTRES_COLONNES =
+  "Toute autre colonne (n° d'inventaire, service, historique…) est reprise dans les notes de l'équipement, précédée de son titre.";
 
 export const MAX_LIGNES = 5000;
 
@@ -154,10 +156,60 @@ const STATUTS = {
   "hors service": "hors_service",
   reforme: "reforme",
 } as const;
+/** Libellés courants des tableaux de suivi : rattachés au statut le plus proche, l'original est gardé dans les notes. */
+const STATUTS_PROCHES = {
+  "en maintenance": "hors_service",
+  "en panne": "hors_service",
+  "en reparation": "hors_service",
+  "au rebut": "reforme",
+  rebut: "reforme",
+} as const;
+
+/** Texte sur une seule ligne (retours à la ligne des cellules Excel remplacés par des espaces). */
+function ligne(c: Cellule | undefined): string | null {
+  return texte(c)?.replace(/\s+/g, " ") ?? null;
+}
+
+/** « ABSENT », « PAS DE N° », « ? », « NS ABSENT »… : la cellule dit qu'il n'y a pas de valeur. */
+function valeurAbsente(t: string): boolean {
+  const n = normaliser(t);
+  return (
+    n === "" ||
+    /\b(absent|absente|aucun|aucune|inconnu|illisible)\b/.test(n) ||
+    /^(pas de|sans)\b/.test(n) ||
+    ["na", "n a", "nc", "x", "non"].includes(n)
+  );
+}
+
+/** Année seule (« 2018 ») : date incomplète, gardée telle quelle dans les notes plutôt qu'inventée. */
+function lireAnnee(c: Cellule | undefined): number | null {
+  const t = typeof c === "number" || typeof c === "string" ? String(c).trim() : "";
+  return /^(19|20)\d{2}$/.test(t) ? Number(t) : null;
+}
+
+/** Valeur reprise dans les notes : date au format français, retours à la ligne conservés. */
+function texteNote(c: Cellule | undefined): string | null {
+  if (c instanceof Date)
+    return Number.isNaN(c.getTime()) ? null : c.toISOString().slice(0, 10).split("-").reverse().join("/");
+  return texte(c)?.replace(/\r\n?/g, "\n") ?? null;
+}
+
+/** Titre de colonne lisible : sur une ligne, raccourci (« VIGILANCE CASE ROUGE = DANGER IMMINENT… »). */
+function titreCourt(t: string, max = 40): string {
+  const l = t.replace(/\s+/g, " ").trim();
+  return l.length > max ? `${l.slice(0, max - 1).trimEnd()}…` : l;
+}
 
 // --- Lecture du tableau --------------------------------------------------------
 
-export type LigneBrute = { numero: number; valeurs: Record<string, Cellule> };
+export type LigneBrute = {
+  numero: number;
+  valeurs: Record<string, Cellule>;
+  /** Colonnes non associées à un champ : reprises dans les notes avec leur titre. */
+  autres?: { titre: string; valeur: string }[];
+  /** Ligne d'une seule cellule (titre de section, commentaire isolé) ou de total : jamais importée. */
+  ignoree?: { motif: "titre" | "total"; texte: string };
+};
 
 /**
  * Périodicité en mois : « 12 », « 12 mois », « 1 an », « 2 ans ». Tout autre libellé (« annuel »…) est refusé :
@@ -177,8 +229,11 @@ export type Correspondance = Record<string, number | null>;
 export type DemandeCorrespondance = {
   /** Numéro (1-based) de la ligne d'en-têtes retenue dans le fichier. */
   ligne: number;
+  /** Titre de chaque colonne, précédé de son groupe quand l'en-tête tient sur deux lignes. */
   entetes: string[];
   champs: { cle: string; entete: string; obligatoire: boolean; aide: string; choix: number | null }[];
+  /** Colonnes non associées que l'utilisateur ne veut pas dans les notes. */
+  exclues: number[];
 };
 
 /** Mots-clés de secours : un en-tête qui contient l'un d'eux est une candidate pour le champ. */
@@ -192,32 +247,48 @@ const MOTS_CLES: Record<string, string[]> = {
   prestataire: ["prestataire", "fournisseur", "organisme", "societe", "entreprise", "intervenant", "sous traitant"],
   dernier_controle: ["dernier", "derniere", "realise", "realisation", "date controle", "date"],
   resultat: ["resultat", "conclusion", "avis", "etat"],
-  code: ["code", "numero", "identifiant", "ref", "id"],
+  code: ["code", "identifiant", "id", "numero", "ref"],
   univers: ["univers", "lot", "corps d etat", "metier"],
   batiment: ["batiment", "site", "immeuble"],
   niveau: ["niveau", "etage"],
-  local: ["local", "piece", "salle"],
+  // Pas de « pièce » : « Pièces pour devis » (pièces détachées) n'est pas un local.
+  local: ["local", "salle", "chambre"],
   marque: ["marque", "fabricant", "constructeur"],
   modele: ["modele", "type"],
   numero_serie: ["serie"],
-  notes: ["note", "observation", "remarque", "commentaire"],
-  mise_en_service: ["mise en service", "installation", "date"],
+  // Pas de mot-clé pour « notes » : une colonne non associée y va déjà, avec son titre (plus clair).
+  // Pas de « date » seul : « Date de MP », « Dernière maintenance »… ne sont pas des mises en service.
+  mise_en_service: ["mise en service", "installation", "acquisition"],
   statut: ["statut", "etat"],
 };
+
+/** Équipements : « Opération à faire » ou « Contrôle » ne désignent pas l'équipement. */
+const MOTS_CLES_EQUIPEMENTS: Record<string, string[]> = {
+  libelle: ["libelle", "designation", "intitule", "denomination"],
+};
+
+/** Le mot-clé figure dans l'en-tête comme mot entier (pluriel en « s » accepté) : « id » ne trouve pas « guide ». */
+function contientMot(entete: string, mot: string): boolean {
+  return ` ${entete} `.includes(` ${mot} `) || ` ${entete} `.includes(` ${mot}s `);
+}
 
 /** Meilleure proposition pour chaque champ : en-tête identique > contenant un mot-clé ; chaque colonne sert une fois. */
 function proposer(entetes: string[], type: TypeImport): Correspondance {
   const colonnes = COLONNES[type];
   const norm = entetes.map(normaliser);
+  // En-tête répété (« OBSERVATION » sous chaque campagne, « OBSERVATIONS » sous la suivante) : ambigu, aucune
+  // proposition ; ces colonnes sont reprises dans les notes avec leur groupe.
+  const singulier = norm.map((e) => e.replace(/s\b/g, ""));
+  const repetes = new Set(singulier.filter((e, i) => e !== "" && singulier.indexOf(e) !== i));
   const candidats: { cle: string; i: number; score: number }[] = [];
   for (const col of colonnes) {
     const noms = [col.entete, ...(col.alias ?? [])].map(normaliser);
     norm.forEach((e, i) => {
-      if (e === "") return;
+      if (e === "" || repetes.has(singulier[i])) return;
       if (noms.includes(e)) candidats.push({ cle: col.cle, i, score: 100 });
       else {
-        const mots = MOTS_CLES[col.cle] ?? [];
-        const idx = mots.findIndex((m) => e.includes(m));
+        const mots = (type === "equipements" ? MOTS_CLES_EQUIPEMENTS[col.cle] : undefined) ?? MOTS_CLES[col.cle] ?? [];
+        const idx = mots.findIndex((m) => contientMot(e, m));
         if (idx !== -1) candidats.push({ cle: col.cle, i, score: 50 - idx });
       }
     });
@@ -254,60 +325,116 @@ function trouverEntete(tableau: Cellule[][], type: TypeImport): number {
   return remplie ? remplie.i : (candidates[0]?.i ?? -1);
 }
 
+/**
+ * Titres des colonnes. En-tête sur deux lignes (« MP 2021 » fusionné au-dessus de « Date », « Vigilance »,
+ * « Observation ») : le groupe précède le titre et vaut pour les colonnes suivantes jusqu'au groupe d'après,
+ * comme une cellule fusionnée. Un texte seul en 1re colonne au-dessus de l'en-tête est un titre de document : ignoré.
+ */
+function titresColonnes(tableau: Cellule[][], indexEntete: number): string[] {
+  const entete = tableau[indexEntete];
+  const dessus = indexEntete > 0 ? tableau[indexEntete - 1] : [];
+  const groupes = dessus.map((c, i) => ({ i, t: ligne(c) })).filter((g) => g.t !== null && g.i > 0);
+  const largeur = Math.max(entete.length, dessus.length);
+  let groupe: string | null = null;
+  return Array.from({ length: largeur }, (_, i) => {
+    const g = groupes.find((x) => x.i === i);
+    if (g) groupe = g.t;
+    const t = ligne(entete[i]);
+    // Le groupe est répété devant chaque colonne : court (« MP 2025/26 : 32 le 16… ») pour ménager les notes.
+    return [groupe ? titreCourt(groupe, 20) : null, t ? titreCourt(t) : null].filter(Boolean).join(" · ");
+  });
+}
+
 export function lireTableau(
   tableau: Cellule[][],
   type: TypeImport,
   correspondance?: Correspondance,
-  options: { codeAuto?: boolean } = {},
+  options: { codeAuto?: boolean; exclues?: number[] } = {},
 ):
   | { erreur: string; lignes?: never; demande?: DemandeCorrespondance }
-  | { erreur?: never; lignes: LigneBrute[]; demande?: never } {
-  const vide = (ligne: Cellule[]) => ligne.every((c) => texte(c) === null);
+  | { erreur?: never; lignes: LigneBrute[]; demande: DemandeCorrespondance } {
   const indexEntete = trouverEntete(tableau, type);
   if (indexEntete === -1) return { erreur: "Le fichier est vide." };
 
   const colonnes = COLONNES[type];
-  const entetes = tableau[indexEntete].map((c) => texte(c) ?? "");
-  const choix = correspondance ?? proposer(entetes, type);
+  const entetes = titresColonnes(tableau, indexEntete);
+  // Propositions sur l'en-tête seul : le groupe (« MP 2021 ») ne doit pas faire reconnaître une colonne.
+  const choix =
+    correspondance ??
+    proposer(
+      tableau[indexEntete].map((c) => texte(c) ?? ""),
+      type,
+    );
   const position = new Map<string, number>();
   for (const [cle, i] of Object.entries(choix)) {
-    if (i !== null && i >= 0 && i < entetes.length) position.set(cle, i);
+    if (i !== null && i >= 0 && i < entetes.length && colonnes.some((c) => c.cle === cle)) position.set(cle, i);
   }
+  const exclues = [...new Set(options.exclues ?? [])].filter((i) => i >= 0 && i < entetes.length);
+  const demande: DemandeCorrespondance = {
+    ligne: indexEntete + 1,
+    entetes,
+    champs: colonnes.map((c) => ({
+      cle: c.cle,
+      entete: c.entete,
+      obligatoire: Boolean(c.obligatoire),
+      aide: c.aide,
+      choix: position.get(c.cle) ?? null,
+    })),
+    exclues,
+  };
 
   // Avec un préfixe de codes générés, la colonne « code » n'est plus obligatoire.
   const manquantes = colonnes.filter(
     (c) => c.obligatoire && !(c.cle === "code" && options.codeAuto) && !position.has(c.cle),
   );
   if (manquantes.length > 0) {
-    return {
-      erreur: `Colonne(s) à associer : ${manquantes.map((c) => `« ${c.entete} »`).join(", ")}.`,
-      demande: {
-        ligne: indexEntete + 1,
-        entetes,
-        champs: colonnes.map((c) => ({
-          cle: c.cle,
-          entete: c.entete,
-          obligatoire: Boolean(c.obligatoire),
-          aide: c.aide,
-          choix: choix[c.cle] ?? null,
-        })),
-      },
-    };
+    return { erreur: `Colonne(s) à associer : ${manquantes.map((c) => `« ${c.entete} »`).join(", ")}.`, demande };
   }
+
+  // Colonnes reprises dans les notes (équipements) : ni associées à un champ, ni exclues par l'utilisateur.
+  const prises = new Set([...position.values(), ...exclues]);
+  const autres =
+    type === "equipements"
+      ? entetes.map((t, i) => ({ i, titre: t || `Colonne ${i + 1}` })).filter((c) => !prises.has(c.i))
+      : [];
 
   const lignes: LigneBrute[] = [];
   for (let i = indexEntete + 1; i < tableau.length; i++) {
-    if (vide(tableau[i])) continue;
-    const valeurs: Record<string, Cellule> = {};
-    for (const [cle, p] of position) {
-      valeurs[cle] = tableau[i][p] ?? null;
-      if (cle.startsWith("info_")) valeurs[`${cle}_titre`] = entetes[p] || null;
+    const remplies = tableau[i].map(ligne).filter((t): t is string => t !== null);
+    if (remplies.length === 0) continue;
+    const numero = i + 1;
+    if (remplies.length === 1) {
+      lignes.push({ numero, valeurs: {}, ignoree: { motif: "titre", texte: remplies[0] } });
+      continue;
     }
-    lignes.push({ numero: i + 1, valeurs });
+    if (/^(sous )?tota(l|ux)\b/.test(normaliser(remplies[0]))) {
+      lignes.push({ numero, valeurs: {}, ignoree: { motif: "total", texte: remplies[0] } });
+      continue;
+    }
+    const valeurs: Record<string, Cellule> = {};
+    for (const [cle, p] of position) valeurs[cle] = tableau[i][p] ?? null;
+    const notes = autres
+      .map((c) => ({ titre: c.titre, valeur: texteNote(tableau[i][c.i]) }))
+      .filter((c): c is { titre: string; valeur: string } => c.valeur !== null);
+    lignes.push({ numero, valeurs, ...(notes.length ? { autres: notes } : {}) });
   }
-  if (lignes.length === 0) return { erreur: "Aucune ligne de données sous l'en-tête." };
+  if (!lignes.some((l) => !l.ignoree)) return { erreur: "Aucune ligne de données sous l'en-tête." };
   if (lignes.length > MAX_LIGNES) return { erreur: `Trop de lignes (${lignes.length}) : ${MAX_LIGNES} maximum.` };
-  return { lignes };
+  return { lignes, demande };
+}
+
+/** Ligne ignorée par la lecture : affichée dans l'aperçu, jamais importée. */
+function apercuIgnoree(numero: number, ignoree: NonNullable<LigneBrute["ignoree"]>, suite = ""): LigneApercu {
+  const extrait = titreCourt(ignoree.texte);
+  return {
+    numero,
+    statut: "ignoree",
+    resume:
+      ignoree.motif === "total"
+        ? `Ligne de total ignorée (« ${extrait} »)`
+        : `Ligne d'une seule cellule ignorée (« ${extrait} »)${suite}`,
+    erreurs: [],
+  };
 }
 
 // --- Existant (lu en base) et résultat -----------------------------------------
@@ -401,7 +528,11 @@ export function planifierControles(lignes: LigneBrute[], existant: Existant): Pl
   const vusDansFichier = new Set<string>();
   const apercu: LigneApercu[] = [];
 
-  for (const { numero, valeurs: v } of lignes) {
+  for (const { numero, valeurs: v, ignoree } of lignes) {
+    if (ignoree) {
+      apercu.push(apercuIgnoree(numero, ignoree));
+      continue;
+    }
     const erreurs: string[] = [];
     const famille = texte(v.famille);
     const libelle = texte(v.libelle);
@@ -555,7 +686,13 @@ export type OptionsEquipements = {
   universParDefaut?: string | null;
   /** Préfixe des codes générés pour les lignes sans code (ex. « FR- » → FR-001, FR-002…). */
   prefixeCode?: string | null;
+  /** Bâtiment des lignes dont la colonne « bâtiment » est vide ou absente. */
+  batimentParDefaut?: string | null;
+  /** Les lignes d'une seule cellule (« AUTOTENSIOMETRE ») donnent la famille des lignes qui suivent. */
+  titresFamille?: boolean;
 };
+
+const MOTIFS_CODE = { absent: "non repris", invalide: "non valide", double: "en double" } as const;
 
 /** Préfixe de code valide : 1 à 20 caractères, sans espace ni / \ ? #. */
 export const PREFIXE_CODE_VALIDE = /^[^\s/\\?#]{1,20}$/;
@@ -608,67 +745,135 @@ export function planifierEquipements(
   };
   // Avec des codes générés, un relevé du même fichier ne doit pas créer de doublons : le n° de série fait foi.
   const seriesExistantes = new Set(existant.equipements.map((e) => normaliser(e.numero_serie ?? "")).filter(Boolean));
-  const seriesFichier = new Set<string>();
+  const seriesFichier = new Map<string, number>();
+  const batimentParDefaut = options.batimentParDefaut?.trim() || null;
+  let familleDeSection: string | null = null;
 
-  for (const { numero, valeurs: v } of lignes) {
+  for (const { numero, valeurs: v, autres, ignoree } of lignes) {
+    if (ignoree) {
+      const titreFamille = options.titresFamille && ignoree.motif === "titre";
+      if (titreFamille) familleDeSection = ignoree.texte.slice(0, MAX_TEXTE.court);
+      apercu.push(apercuIgnoree(numero, ignoree, titreFamille ? ` : famille des lignes suivantes` : ""));
+      continue;
+    }
     const erreurs: string[] = [];
-    const codeSaisi = texte(v.code);
-    const codeAuto = codeSaisi === null && prefixe !== null;
-    const code = codeSaisi;
-    const libelle = texte(v.libelle);
-    const univers = texte(v.univers);
-    const famille = texte(v.famille);
-    const batiment = texte(v.batiment);
-    const niveau = texte(v.niveau);
-    const local = texte(v.local);
-    const miseEnService = lireDate(v.mise_en_service);
-    const statut = lireEnum(v.statut, STATUTS);
+    /** Informations sans champ dédié, ajoutées en tête des notes (rien n'est perdu ni inventé). */
+    const precisions: string[] = [];
 
-    const serie = texte(v.numero_serie);
-    const notes = [
-      texte(v.notes),
-      ...["info_1", "info_2", "info_3"].map((k) => {
-        const valeur = texte(v[k]);
-        const titre = texte(v[`${k}_titre`]);
-        return valeur ? (titre ? `${titre} : ${valeur}` : valeur) : null;
-      }),
-    ]
+    // Code : un code absent (« ABSENT »), non valide (« ANCIEN N°157 ? ») ou en double est remplacé par un code
+    // généré quand un préfixe est donné ; la valeur d'origine est gardée dans les notes.
+    const codeBrut = ligne(v.code);
+    let motifCode: keyof typeof MOTIFS_CODE | null = null;
+    if (codeBrut !== null) {
+      if (valeurAbsente(codeBrut)) motifCode = "absent";
+      else if (!/^[^\s/\\?#]+$/.test(codeBrut) || codeBrut.length > MAX_TEXTE.code) motifCode = "invalide";
+      else if (codesFichier.has(normaliser(codeBrut))) motifCode = "double";
+    }
+    const codeAuto = prefixe !== null && (codeBrut === null || motifCode !== null);
+    const code = codeAuto || motifCode === "absent" ? null : codeBrut;
+    if (codeAuto && codeBrut !== null) precisions.push(`Code d'origine : ${codeBrut}`);
+
+    // N° de série : 1re ligne de la cellule ; les lignes suivantes (« PAS DE DEVIS… ») vont dans les notes.
+    const [serieBrute, ...suiteSerie] = (texteNote(v.numero_serie) ?? "").split("\n");
+    let serie = serieBrute.trim() || null;
+    if (serie && valeurAbsente(serie)) {
+      precisions.push(`N° de série : ${serie}`);
+      serie = null;
+    }
+    const suite = suiteSerie.map((s) => s.trim()).filter(Boolean);
+    if (suite.length) precisions.push(`N° de série (suite) : ${suite.join(" / ")}`);
+
+    const marque = ligne(v.marque);
+    const modele = ligne(v.modele);
+    // Rien pour identifier un équipement (suite d'une cellule qui déborde, ligne « En service » isolée) : ignorée.
+    if (!codeBrut && !ligne(v.libelle) && !marque && !modele && !serieBrute.trim()) {
+      apercu.push({
+        numero,
+        statut: "ignoree",
+        resume: "Ligne ignorée : ni code, ni libellé, ni marque, ni modèle, ni n° de série",
+        erreurs: [],
+      });
+      continue;
+    }
+    const famille = ligne(v.famille) ?? (options.titresFamille ? familleDeSection : null);
+    const libelle = ligne(v.libelle) ?? ([marque, modele].filter(Boolean).join(" ") || famille);
+    const univers = ligne(v.univers);
+    const batiment = ligne(v.batiment) ?? batimentParDefaut;
+    const niveau = ligne(v.niveau);
+    const local = ligne(v.local);
+
+    const annee = lireAnnee(v.mise_en_service);
+    const miseEnService = annee === null ? lireDate(v.mise_en_service) : { valeur: null };
+    if (annee !== null) precisions.push(`Mise en service : ${annee}`);
+
+    let statut = lireEnum(v.statut, STATUTS);
+    if (statut === undefined) {
+      const proche = lireEnum(v.statut, STATUTS_PROCHES);
+      if (proche) {
+        statut = proche;
+        precisions.push(`Statut d'origine : ${ligne(v.statut)}`);
+      }
+    }
+
+    const notes = [...precisions, texteNote(v.notes), ...(autres ?? []).map((a) => `${a.titre} : ${a.valeur}`)]
       .filter(Boolean)
       .join("\n");
-    if (!code && !codeAuto) erreurs.push("Code manquant");
-    if (!libelle) erreurs.push("Libellé manquant");
-    if (notes.length > 2000) erreurs.push("Notes et informations complémentaires : 2 000 caractères maximum");
+    if (!code && !codeAuto) {
+      erreurs.push(
+        motifCode === "absent"
+          ? `Code manquant (« ${codeBrut} ») : indiquez un préfixe pour générer les codes`
+          : "Code manquant",
+      );
+    }
+    if (!libelle) erreurs.push("Libellé manquant (ni libellé, ni marque, ni modèle, ni famille)");
+    if (notes.length > 2000) {
+      erreurs.push(
+        `Notes : ${notes.length} caractères pour 2 000 au maximum. Décochez des colonnes reprises dans les notes (« Ajuster l'association des colonnes »)`,
+      );
+    }
     // Même règle que la saisie (schemaEquipement) : le code sert dans les adresses et les étiquettes.
-    if (code && !/^[^\s/\\?#]+$/.test(code)) erreurs.push("Code : sans espace ni / \\ ? #");
-    verifierLongueur(code, MAX_TEXTE.code, "Code", erreurs);
+    if (code && motifCode === "invalide") {
+      erreurs.push(
+        /^[^\s/\\?#]+$/.test(code) ? `Code : ${MAX_TEXTE.code} caractères maximum` : "Code : sans espace ni / \\ ? #",
+      );
+    }
     verifierLongueur(libelle, MAX_TEXTE.libelle, "Libellé", erreurs);
     verifierLongueur(univers, MAX_TEXTE.court, "Univers", erreurs);
     verifierLongueur(famille, MAX_TEXTE.court, "Famille", erreurs);
     verifierLongueur(batiment, MAX_TEXTE.court, "Bâtiment", erreurs);
     verifierLongueur(niveau, MAX_TEXTE.niveau, "Niveau", erreurs);
     verifierLongueur(local, MAX_TEXTE.court, "Local", erreurs);
-    for (const [cle, nom] of [
-      ["marque", "Marque"],
-      ["modele", "Modèle"],
-      ["numero_serie", "N° de série"],
-    ] as const) {
-      verifierLongueur(texte(v[cle]), MAX_TEXTE.court, nom, erreurs);
+    verifierLongueur(marque, MAX_TEXTE.court, "Marque", erreurs);
+    verifierLongueur(modele, MAX_TEXTE.court, "Modèle", erreurs);
+    verifierLongueur(serie, MAX_TEXTE.court, "N° de série", erreurs);
+    if (!batiment && (niveau || local)) {
+      erreurs.push("Bâtiment obligatoire si niveau ou local est rempli (colonne ou bâtiment par défaut)");
     }
-    if (!batiment && (niveau || local)) erreurs.push("Bâtiment obligatoire si niveau ou local est rempli");
     if (miseEnService.erreur) erreurs.push(`Mise en service : ${miseEnService.erreur}`);
     if (miseEnService.valeur && miseEnService.valeur > aujourdhui) erreurs.push("Mise en service dans le futur");
-    if (statut === undefined) erreurs.push(`Statut « ${texte(v.statut)} » inconnu (en service, hors service, réformé)`);
-    if (code && codesFichier.has(normaliser(code))) erreurs.push(`Code « ${code} » en double dans le fichier`);
-    if (code) codesFichier.add(normaliser(code));
-    if (codeAuto && serie && seriesFichier.has(normaliser(serie))) {
-      erreurs.push(`N° de série « ${serie} » en double dans le fichier`);
+    if (annee !== null && annee > Number(aujourdhui.slice(0, 4))) erreurs.push("Mise en service dans le futur");
+    if (statut === undefined) {
+      erreurs.push(`Statut « ${ligne(v.statut)} » inconnu (en service, hors service, réformé, en maintenance)`);
     }
-    if (serie) seriesFichier.add(normaliser(serie));
+    if (code && motifCode === "double") erreurs.push(`Code « ${code} » en double dans le fichier`);
+    if (code) codesFichier.add(normaliser(code));
 
     if (erreurs.length > 0 || (!code && !codeAuto) || !libelle) {
       apercu.push({ numero, statut: "erreur", resume: [code, libelle].filter(Boolean).join(" — "), erreurs });
       continue;
     }
+    // Même n° de série deux fois (relevé fait deux fois, doublon signalé) : un seul équipement.
+    const ligneSerie = codeAuto && serie ? seriesFichier.get(normaliser(serie)) : undefined;
+    if (ligneSerie !== undefined) {
+      apercu.push({
+        numero,
+        statut: "ignoree",
+        resume: `${libelle} : n° de série ${serie} déjà repris à la ligne ${ligneSerie}`,
+        erreurs: [],
+      });
+      continue;
+    }
+    if (serie && !seriesFichier.has(normaliser(serie))) seriesFichier.set(normaliser(serie), numero);
     if (code && codes.has(normaliser(code))) {
       apercu.push({ numero, statut: "ignoree", resume: `${code} — ${libelle} : code déjà présent`, erreurs: [] });
       continue;
@@ -704,18 +909,20 @@ export function planifierEquipements(
       univers: univers || !options.universParDefaut ? refUnivers(univers) : { id: options.universParDefaut },
       famille: refFamille(famille),
       localisation: refLoc,
-      marque: texte(v.marque),
-      modele: texte(v.modele),
+      marque,
+      modele,
       numero_serie: serie,
       notes: notes || null,
       date_mise_en_service: miseEnService.valeur,
       statut: statut ?? "en_service",
     });
+    const genere = codeAuto ? ` (code généré${motifCode ? `, « ${codeBrut} » ${MOTIFS_CODE[motifCode]}` : ""})` : "";
     apercu.push({
       numero,
       statut: "creation",
       resume: [
-        `${codeFinal}${codeAuto ? " (code généré)" : ""} — ${libelle}`,
+        `${codeFinal}${genere} — ${libelle}`,
+        famille,
         univers,
         [batiment, niveau, local].filter(Boolean).join(" / "),
       ]

@@ -278,7 +278,7 @@ describe("fichiers", () => {
     for (const type of ["controles", "equipements"] as const) {
       const { tableau } = await lireFichier("modele.xlsx", await genererModele(type));
       expect(tableau![0].length).toBeGreaterThan(5);
-      expect(lireTableau([...tableau!, ["x"]], type).erreur).toBeUndefined();
+      expect(lireTableau([...tableau!, ["x", "y"]], type).erreur).toBeUndefined();
     }
   });
 });

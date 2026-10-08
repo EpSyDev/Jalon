@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import type { Correspondance, DemandeCorrespondance } from "@/lib/metier/import";
-import { analyserImport, importer, type Apercu } from "./actions";
+import { analyserImport, importer, type Apercu, type ReponseImport } from "./actions";
 
 const TYPES = [
   { valeur: "equipements", libelle: "Équipements (fauteuils, matériel biomédical, etc.)" },
@@ -16,9 +16,42 @@ const TYPES = [
 
 const STATUTS = {
   creation: { libelle: "À créer", icone: CircleCheck, classe: "text-emerald-700 dark:text-emerald-400" },
-  ignoree: { libelle: "Déjà présent", icone: CircleMinus, classe: "text-muted-foreground" },
+  ignoree: { libelle: "Ignorée", icone: CircleMinus, classe: "text-muted-foreground" },
   erreur: { libelle: "Erreur", icone: CircleAlert, classe: "text-destructive" },
 } as const;
+
+// --- Association mémorisée (ce navigateur) pour un modèle de fichier : mêmes titres de colonnes ----------------
+
+type Memoire = { correspondance: Correspondance; exclues: number[] };
+
+function cleMemoire(type: string, entetes: string[]): string {
+  const s = `${type}|${entetes.join("|")}`;
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return `jalon:import:${(h >>> 0).toString(36)}`;
+}
+
+function lireMemoire(cle: string): Memoire | null {
+  try {
+    const m = JSON.parse(localStorage.getItem(cle) ?? "null");
+    return m && typeof m.correspondance === "object" && Array.isArray(m.exclues) ? m : null;
+  } catch {
+    return null;
+  }
+}
+
+function ecrireMemoire(cle: string, m: Memoire) {
+  try {
+    localStorage.setItem(cle, JSON.stringify(m));
+  } catch {
+    // Stockage indisponible (navigation privée) : l'association sera simplement reproposée.
+  }
+}
+
+const choixDe = (d: DemandeCorrespondance): Correspondance => Object.fromEntries(d.champs.map((c) => [c.cle, c.choix]));
+const memeAssociation = (a: Memoire, b: Memoire) =>
+  JSON.stringify(Object.entries(a.correspondance).sort()) === JSON.stringify(Object.entries(b.correspondance).sort()) &&
+  JSON.stringify([...a.exclues].sort()) === JSON.stringify([...b.exclues].sort());
 
 export function FormulaireImport({ univers }: { univers: { id: string; libelle: string }[] }) {
   const [type, setType] = useState<"controles" | "equipements">("equipements");
@@ -26,26 +59,50 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
   const [feuilles, setFeuilles] = useState<string[] | null>(null);
   const formulaire = useRef<HTMLFormElement>(null);
   const [apercu, setApercu] = useState<Apercu | null>(null);
-  const [message, setMessage] = useState<{ ton: "erreur" | "succes"; texte: string } | null>(null);
+  const [message, setMessage] = useState<{ ton: "erreur" | "succes" | "info"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
   const [filtreErreurs, setFiltreErreurs] = useState(false);
-  // Association des colonnes : proposée par l'outil, ajustable par l'utilisateur.
+  // Association des colonnes : proposée par l'outil, ajustable par l'utilisateur, mémorisée par modèle de fichier.
   const [demande, setDemande] = useState<DemandeCorrespondance | null>(null);
   const [choix, setChoix] = useState<Correspondance>({});
+  const [exclues, setExclues] = useState<number[]>([]);
   const [correspondance, setCorrespondance] = useState<Correspondance | null>(null);
   const [edition, setEdition] = useState(false);
 
-  function lancer(action: typeof analyserImport, assoc: Correspondance | null = correspondance) {
+  function lancer(
+    action: typeof analyserImport,
+    assoc: Correspondance | null = correspondance,
+    excl: number[] = exclues,
+  ) {
     if (!formulaire.current) return;
     const donnees = new FormData(formulaire.current);
-    if (assoc) donnees.set("correspondance", JSON.stringify(assoc));
+    const typeFichier = String(donnees.get("type"));
+    const envoyer = (a: Correspondance | null, e: number[]) => {
+      const d = new FormData(formulaire.current!);
+      if (a) d.set("correspondance", JSON.stringify(a));
+      d.set("exclues", JSON.stringify(e));
+      return action(d);
+    };
     demarrer(async () => {
-      const r = await action(donnees);
+      let r: ReponseImport = await envoyer(assoc, excl);
+      let reprise = false;
+      // Premier passage sur un fichier : reprendre l'association mémorisée pour ce modèle, si elle diffère.
+      if (!assoc && action === analyserImport && r.demande) {
+        const memoire = lireMemoire(cleMemoire(typeFichier, r.demande.entetes));
+        if (memoire && !memeAssociation(memoire, { correspondance: choixDe(r.demande), exclues: r.demande.exclues })) {
+          r = await envoyer(memoire.correspondance, memoire.exclues);
+          setCorrespondance(memoire.correspondance);
+          reprise = true;
+        }
+      }
+      if (r.demande) {
+        setDemande(r.demande);
+        setChoix(choixDe(r.demande));
+        setExclues(r.demande.exclues);
+      }
       if (r.erreur !== undefined) {
         setApercu(null);
         if (r.demande) {
-          setDemande(r.demande);
-          setChoix(Object.fromEntries(r.demande.champs.map((c) => [c.cle, c.choix])));
           setEdition(true);
           setMessage({
             ton: "erreur",
@@ -56,11 +113,27 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
           setMessage({ ton: "erreur", texte: r.erreur });
         }
       } else if (r.importe) {
+        if (demande) {
+          ecrireMemoire(cleMemoire(typeFichier, demande.entetes), {
+            correspondance: choixDe(demande),
+            exclues: demande.exclues,
+          });
+        }
         setMessage({ ton: "succes", texte: r.importe });
         setApercu(null);
+        setDemande(null);
+        setCorrespondance(null);
+        setExclues([]);
         formulaire.current?.reset();
       } else if (r.apercu) {
-        setMessage(null);
+        setMessage(
+          reprise
+            ? {
+                ton: "info",
+                texte: "Association des colonnes reprise d'un import précédent du même modèle de fichier.",
+              }
+            : null,
+        );
         setEdition(false);
         setApercu(r.apercu);
         setFiltreErreurs(!r.apercu.importable);
@@ -70,6 +143,7 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
 
   const nbErreurs = apercu?.lignes.filter((l) => l.statut === "erreur").length ?? 0;
   const lignes = apercu ? (filtreErreurs ? apercu.lignes.filter((l) => l.statut === "erreur") : apercu.lignes) : [];
+  const associees = new Set(Object.values(choix).filter((i): i is number => i !== null));
 
   return (
     <div className="grid gap-6">
@@ -79,11 +153,13 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
         onChange={(e) => {
           const cible = e.target as unknown as HTMLInputElement;
           if (cible.name === "type") setType(cible.value as "controles" | "equipements");
-          if (cible.name === "feuille") return;
-          setFeuilles(null);
           setApercu(null);
+          // Options (préfixe, bâtiment…) : l'association reste valable. Autre fichier ou feuille : elle repart de zéro.
+          if (!["type", "fichier", "feuille"].includes(cible.name)) return;
+          if (cible.name !== "feuille") setFeuilles(null);
           setDemande(null);
           setCorrespondance(null);
+          setExclues([]);
           setEdition(false);
         }}
         onSubmit={(e) => {
@@ -156,10 +232,32 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
                 className="h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base"
               />
               <span className="text-xs text-muted-foreground">
-                Facultatif. Les lignes sans code reçoivent FR-001, FR-002… Le numéro de série (s&apos;il existe) évite
-                les doublons si vous réimportez le fichier ; sans numéro de série, importez-le une seule fois.
+                Facultatif. Les lignes sans code, ou dont le code est « ABSENT », non valide ou en double, reçoivent
+                FR-001, FR-002… (le code d&apos;origine est gardé dans les notes). Le numéro de série (s&apos;il existe)
+                évite les doublons si vous réimportez le fichier ; sans numéro de série, importez-le une seule fois.
               </span>
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="batiment_defaut">Bâtiment de tous ces équipements</Label>
+              <input
+                id="batiment_defaut"
+                name="batiment_defaut"
+                maxLength={120}
+                autoComplete="off"
+                placeholder="Ex. : Bâtiment principal"
+                className="h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base"
+              />
+              <span className="text-xs text-muted-foreground">
+                Facultatif. Utilisé quand la colonne « Bâtiment » est vide ou absente : nécessaire pour ranger un étage
+                ou une chambre.
+              </span>
+            </div>
+            <label className="flex min-h-11 items-start gap-3 text-sm">
+              <input type="checkbox" name="titres_famille" className="mt-0.5 size-5 shrink-0" />
+              <span>
+                Les lignes d&apos;une seule cellule (ex. « AUTOTENSIOMETRE ») donnent la famille des lignes qui suivent.
+              </span>
+            </label>
           </fieldset>
         )}
         <Button type="submit" disabled={enCours} className="h-12 text-base">
@@ -172,9 +270,9 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
           role={message.ton === "erreur" ? "alert" : "status"}
           className={cn(
             "rounded-lg p-4",
-            message.ton === "erreur"
-              ? "bg-destructive/10 text-destructive"
-              : "bg-emerald-600/10 text-emerald-800 dark:text-emerald-300",
+            message.ton === "erreur" && "bg-destructive/10 text-destructive",
+            message.ton === "succes" && "bg-emerald-600/10 text-emerald-800 dark:text-emerald-300",
+            message.ton === "info" && "bg-muted text-foreground",
           )}
         >
           {message.texte}
@@ -186,8 +284,9 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
           <div className="grid gap-1">
             <h2 className="text-lg font-semibold">Associez vos colonnes</h2>
             <p className="text-sm text-muted-foreground">
-              Lignes d&apos;en-têtes détectée : ligne {demande.ligne} de votre fichier. Pour chaque information de
-              Jalon, choisissez la colonne qui la contient. Les champs facultatifs peuvent rester vides.
+              Ligne d&apos;en-têtes détectée : ligne {demande.ligne} de votre fichier. Pour chaque information de Jalon,
+              choisissez la colonne qui la contient. Les champs facultatifs peuvent rester vides. L&apos;association est
+              retenue pour les prochains fichiers du même modèle.
             </p>
           </div>
           <ul className="grid gap-3">
@@ -216,13 +315,35 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
               </li>
             ))}
           </ul>
+          {type === "equipements" && demande.entetes.some((_, i) => !associees.has(i)) && (
+            <fieldset className="grid gap-2">
+              <legend className="mb-1 text-sm font-medium">Autres colonnes reprises dans les notes</legend>
+              <p className="text-xs text-muted-foreground">
+                Décochez celles qui n&apos;apportent rien : les notes d&apos;un équipement sont limitées à 2 000
+                caractères.
+              </p>
+              {demande.entetes.map((entete, i) =>
+                associees.has(i) ? null : (
+                  <label key={i} className="flex min-h-10 items-center gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="size-5 shrink-0"
+                      checked={!exclues.includes(i)}
+                      onChange={(e) => setExclues(e.target.checked ? exclues.filter((x) => x !== i) : [...exclues, i])}
+                    />
+                    {`Colonne ${i + 1}${entete ? ` — ${entete}` : " (sans titre)"}`}
+                  </label>
+                ),
+              )}
+            </fieldset>
+          )}
           <Button
             type="button"
             disabled={enCours}
             className="h-12 text-base"
             onClick={() => {
               setCorrespondance(choix);
-              lancer(analyserImport, choix);
+              lancer(analyserImport, choix, exclues);
             }}
           >
             {enCours ? "Analyse…" : "Valider l'association et analyser"}
@@ -253,7 +374,7 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
             <p role="alert" className="rounded-lg bg-destructive/10 p-4 text-destructive">
               {nbErreurs > 0
                 ? `${nbErreurs} ligne(s) en erreur : rien ne sera importé. Corrigez le fichier puis relancez l'analyse.`
-                : "Rien de nouveau à importer : toutes les lignes sont déjà présentes."}
+                : "Rien de nouveau à importer : toutes les lignes sont déjà présentes ou ignorées."}
             </p>
           )}
 

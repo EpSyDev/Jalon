@@ -3,7 +3,7 @@
 import Papa from "papaparse";
 import readXlsxFile from "read-excel-file/node";
 import writeXlsxFile from "write-excel-file/node";
-import { COLONNES, type Cellule, type TypeImport } from "@/lib/metier/import";
+import { AIDE_AUTRES_COLONNES, COLONNES, type Cellule, type TypeImport } from "@/lib/metier/import";
 
 export const TAILLE_MAX = 5 * 1024 * 1024;
 
@@ -83,6 +83,7 @@ export async function genererModele(type: TypeImport): Promise<Buffer> {
     ],
     ...colonnes.map((c) => [{ value: c.entete }, { value: c.obligatoire ? "oui" : "non" }, { value: c.aide }]),
     [],
+    ...(type === "equipements" ? [[{ value: AIDE_AUTRES_COLONNES }]] : []),
     [{ value: "Aucune donnée patient dans ce fichier." }],
   ];
   return writeXlsxFile([

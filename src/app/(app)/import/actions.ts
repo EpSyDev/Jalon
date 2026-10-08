@@ -27,10 +27,22 @@ export type Apercu = {
 
 export type ReponseImport =
   | { erreur: string; demande?: DemandeCorrespondance; feuilles?: string[] }
-  | { apercu: Apercu; importe?: never; erreur?: never }
-  | { importe: string; apercu?: never; erreur?: never };
+  | { apercu: Apercu; demande: DemandeCorrespondance; importe?: never; erreur?: never }
+  | { importe: string; apercu?: never; erreur?: never; demande?: never };
 
 const schemaCorrespondance = z.record(z.string().max(40), z.number().int().min(0).max(500).nullable());
+const schemaExclues = z.array(z.number().int().min(0).max(500)).max(500);
+
+/** Colonnes à ne pas reprendre dans les notes (JSON validé) ; illisible = aucune. */
+function lireExclues(brut: FormDataEntryValue | null): number[] {
+  if (typeof brut !== "string" || brut === "") return [];
+  try {
+    const r = schemaExclues.safeParse(JSON.parse(brut));
+    return r.success ? r.data : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Correspondance choisie par l'utilisateur (JSON validé), ou undefined pour la détection automatique. */
 function lireCorrespondance(brut: FormDataEntryValue | null): Correspondance | undefined | "invalide" {
@@ -72,14 +84,22 @@ async function preparer(formData: FormData) {
     type === "equipements" && typeof universBrut === "string" && z.uuid().safeParse(universBrut).success
       ? universBrut
       : null;
+  const batimentBrut = formData.get("batiment_defaut");
+  const batiment = typeof batimentBrut === "string" ? batimentBrut.replace(/\s+/g, " ").trim() : "";
+  if (type === "equipements" && batiment.length > 120) return { erreur: "Bâtiment : 120 caractères maximum." };
   const options: OptionsEquipements = {
     prefixeCode: type === "equipements" && prefixe !== "" ? prefixe : null,
     universParDefaut,
+    batimentParDefaut: type === "equipements" && batiment !== "" ? batiment : null,
+    titresFamille: type === "equipements" && formData.get("titres_famille") === "on",
   };
 
-  const lu = lireTableau(tableau, type as TypeImport, correspondance, { codeAuto: options.prefixeCode !== null });
+  const lu = lireTableau(tableau, type as TypeImport, correspondance, {
+    codeAuto: options.prefixeCode !== null,
+    exclues: lireExclues(formData.get("exclues")),
+  });
   if (lu.erreur) return { erreur: lu.erreur, demande: lu.demande };
-  return { type: type as TypeImport, lignes: lu.lignes, options };
+  return { type: type as TypeImport, lignes: lu.lignes, demande: lu.demande, options };
 }
 
 type Operations =
@@ -110,7 +130,7 @@ function resumeCreations(ops: Operations): string[] {
 
 export async function analyserImport(formData: FormData): Promise<ReponseImport> {
   const prepare = await preparer(formData);
-  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande };
+  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande, feuilles: prepare.feuilles };
   try {
     return await requete(
       async (tx) => {
@@ -131,6 +151,7 @@ export async function analyserImport(formData: FormData): Promise<ReponseImport>
             importable: plan.importable,
             creations: plan.importable ? resumeCreations(plan.operations) : [],
           },
+          demande: prepare.demande!,
         };
       },
       [...ECRITURE],
@@ -144,7 +165,7 @@ export async function analyserImport(formData: FormData): Promise<ReponseImport>
 /** Réanalyse le fichier puis importe tout, dans une seule transaction (tout ou rien). */
 export async function importer(formData: FormData): Promise<ReponseImport> {
   const prepare = await preparer(formData);
-  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande };
+  if ("erreur" in prepare) return { erreur: prepare.erreur!, demande: prepare.demande, feuilles: prepare.feuilles };
   try {
     const bilan = await requete(
       async (tx) => {
