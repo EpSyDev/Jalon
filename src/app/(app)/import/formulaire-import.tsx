@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import type { Correspondance, DemandeCorrespondance } from "@/lib/metier/import";
-import { analyserImport, importer, type Apercu, type ReponseImport } from "./actions";
+import { analyserImport, importer, type Apercu, type DemandeFeuille, type ReponseImport } from "./actions";
 
 const TYPES = [
   { valeur: "equipements", libelle: "Équipements (fauteuils, matériel biomédical, etc.)" },
@@ -20,9 +20,13 @@ const STATUTS = {
   erreur: { libelle: "Erreur", icone: CircleAlert, classe: "text-destructive" },
 } as const;
 
-// --- Association mémorisée (ce navigateur) pour un modèle de fichier : mêmes titres de colonnes ----------------
+const CHAMP = "h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base";
 
-type Memoire = { correspondance: Correspondance; exclues: number[] };
+// --- Association mémorisée (ce navigateur) pour un modèle de feuille : mêmes titres de colonnes ----------------
+
+type Association = { correspondance: Correspondance; exclues: number[] };
+/** Association par feuille ; clé "" pour un fichier sans feuille à choisir (CSV, classeur à une feuille). */
+type Associations = Record<string, Association>;
 
 function cleMemoire(type: string, entetes: string[]): string {
   const s = `${type}|${entetes.join("|")}`;
@@ -31,7 +35,7 @@ function cleMemoire(type: string, entetes: string[]): string {
   return `jalon:import:${(h >>> 0).toString(36)}`;
 }
 
-function lireMemoire(cle: string): Memoire | null {
+function lireMemoire(cle: string): Association | null {
   try {
     const m = JSON.parse(localStorage.getItem(cle) ?? "null");
     return m && typeof m.correspondance === "object" && Array.isArray(m.exclues) ? m : null;
@@ -40,7 +44,7 @@ function lireMemoire(cle: string): Memoire | null {
   }
 }
 
-function ecrireMemoire(cle: string, m: Memoire) {
+function ecrireMemoire(cle: string, m: Association) {
   try {
     localStorage.setItem(cle, JSON.stringify(m));
   } catch {
@@ -48,82 +52,82 @@ function ecrireMemoire(cle: string, m: Memoire) {
   }
 }
 
-const choixDe = (d: DemandeCorrespondance): Correspondance => Object.fromEntries(d.champs.map((c) => [c.cle, c.choix]));
-const memeAssociation = (a: Memoire, b: Memoire) =>
+const associationDe = (d: DemandeCorrespondance): Association => ({
+  correspondance: Object.fromEntries(d.champs.map((c) => [c.cle, c.choix])),
+  exclues: d.exclues,
+});
+const memeAssociation = (a: Association, b: Association) =>
   JSON.stringify(Object.entries(a.correspondance).sort()) === JSON.stringify(Object.entries(b.correspondance).sort()) &&
   JSON.stringify([...a.exclues].sort()) === JSON.stringify([...b.exclues].sort());
+const cleFeuille = (d: DemandeFeuille) => d.feuille ?? "";
 
 export function FormulaireImport({ univers }: { univers: { id: string; libelle: string }[] }) {
   const [type, setType] = useState<"controles" | "equipements">("equipements");
-  // Classeur à plusieurs feuilles : l'utilisateur choisit celle à importer.
+  // Classeur à plusieurs feuilles : l'utilisateur coche celles à importer.
   const [feuilles, setFeuilles] = useState<string[] | null>(null);
   const formulaire = useRef<HTMLFormElement>(null);
   const [apercu, setApercu] = useState<Apercu | null>(null);
   const [message, setMessage] = useState<{ ton: "erreur" | "succes" | "info"; texte: string } | null>(null);
   const [enCours, demarrer] = useTransition();
   const [filtreErreurs, setFiltreErreurs] = useState(false);
-  // Association des colonnes : proposée par l'outil, ajustable par l'utilisateur, mémorisée par modèle de fichier.
-  const [demande, setDemande] = useState<DemandeCorrespondance | null>(null);
-  const [choix, setChoix] = useState<Correspondance>({});
-  const [exclues, setExclues] = useState<number[]>([]);
-  const [correspondance, setCorrespondance] = useState<Correspondance | null>(null);
-  const [edition, setEdition] = useState(false);
+  const [maintenance, setMaintenance] = useState(false);
+  // Association des colonnes, feuille par feuille : proposée, ajustable, mémorisée par modèle de feuille.
+  const [demandes, setDemandes] = useState<DemandeFeuille[]>([]);
+  const [associations, setAssociations] = useState<Associations>({});
+  const [edition, setEdition] = useState<{ cle: string; choix: Correspondance; exclues: number[] } | null>(null);
 
-  function lancer(
-    action: typeof analyserImport,
-    assoc: Correspondance | null = correspondance,
-    excl: number[] = exclues,
-  ) {
+  function reinitialiser() {
+    setApercu(null);
+    setDemandes([]);
+    setAssociations({});
+    setEdition(null);
+  }
+
+  function lancer(action: typeof analyserImport, assoc: Associations = associations) {
     if (!formulaire.current) return;
-    const donnees = new FormData(formulaire.current);
-    const typeFichier = String(donnees.get("type"));
-    const envoyer = (a: Correspondance | null, e: number[]) => {
+    const typeFichier = String(new FormData(formulaire.current).get("type"));
+    const envoyer = (a: Associations) => {
       const d = new FormData(formulaire.current!);
-      if (a) d.set("correspondance", JSON.stringify(a));
-      d.set("exclues", JSON.stringify(e));
+      d.set("associations", JSON.stringify(a));
       return action(d);
     };
     demarrer(async () => {
-      let r: ReponseImport = await envoyer(assoc, excl);
+      let r: ReponseImport = await envoyer(assoc);
       let reprise = false;
-      // Premier passage sur un fichier : reprendre l'association mémorisée pour ce modèle, si elle diffère.
-      if (!assoc && action === analyserImport && r.demande) {
-        const memoire = lireMemoire(cleMemoire(typeFichier, r.demande.entetes));
-        if (memoire && !memeAssociation(memoire, { correspondance: choixDe(r.demande), exclues: r.demande.exclues })) {
-          r = await envoyer(memoire.correspondance, memoire.exclues);
-          setCorrespondance(memoire.correspondance);
+      // Feuilles analysées sans association choisie : reprendre celle mémorisée pour ce modèle, si elle diffère.
+      if (action === analyserImport && r.demandes?.length) {
+        const complement: Associations = {};
+        for (const d of r.demandes) {
+          if (assoc[cleFeuille(d)]) continue;
+          const memoire = lireMemoire(cleMemoire(typeFichier, d.demande.entetes));
+          if (memoire && !memeAssociation(memoire, associationDe(d.demande))) complement[cleFeuille(d)] = memoire;
+        }
+        if (Object.keys(complement).length) {
+          assoc = { ...assoc, ...complement };
+          setAssociations(assoc);
+          r = await envoyer(assoc);
           reprise = true;
         }
       }
-      if (r.demande) {
-        setDemande(r.demande);
-        setChoix(choixDe(r.demande));
-        setExclues(r.demande.exclues);
-      }
+      if (r.demandes) setDemandes(r.demandes);
       if (r.erreur !== undefined) {
         setApercu(null);
-        if (r.demande) {
-          setEdition(true);
-          setMessage({
-            ton: "erreur",
-            texte: "Je n'ai pas reconnu toutes les colonnes obligatoires : associez-les ci-dessous.",
+        if (r.feuilles) setFeuilles(r.feuilles);
+        setMessage({ ton: "erreur", texte: r.erreur });
+        // Colonne obligatoire introuvable : ouvrir l'association de la première feuille en cause.
+        const enCause = r.demandes?.find((d) => r.erreur!.includes(`« ${d.feuille} »`)) ?? r.demandes?.[0];
+        if (enCause)
+          setEdition({
+            cle: cleFeuille(enCause),
+            ...associationDe(enCause.demande),
+            choix: associationDe(enCause.demande).correspondance,
           });
-        } else {
-          setFeuilles(r.feuilles ?? null);
-          setMessage({ ton: "erreur", texte: r.erreur });
-        }
       } else if (r.importe) {
-        if (demande) {
-          ecrireMemoire(cleMemoire(typeFichier, demande.entetes), {
-            correspondance: choixDe(demande),
-            exclues: demande.exclues,
-          });
-        }
+        for (const d of demandes) ecrireMemoire(cleMemoire(typeFichier, d.demande.entetes), associationDe(d.demande));
         setMessage({ ton: "succes", texte: r.importe });
-        setApercu(null);
-        setDemande(null);
-        setCorrespondance(null);
-        setExclues([]);
+        reinitialiser();
+        setFeuilles(null);
+        setMaintenance(false);
         formulaire.current?.reset();
       } else if (r.apercu) {
         setMessage(
@@ -134,7 +138,7 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
               }
             : null,
         );
-        setEdition(false);
+        setEdition(null);
         setApercu(r.apercu);
         setFiltreErreurs(!r.apercu.importable);
       }
@@ -143,7 +147,9 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
 
   const nbErreurs = apercu?.lignes.filter((l) => l.statut === "erreur").length ?? 0;
   const lignes = apercu ? (filtreErreurs ? apercu.lignes.filter((l) => l.statut === "erreur") : apercu.lignes) : [];
-  const associees = new Set(Object.values(choix).filter((i): i is number => i !== null));
+  const demandeEditee = edition ? demandes.find((d) => cleFeuille(d) === edition.cle) : undefined;
+  const associees = new Set(Object.values(edition?.choix ?? {}).filter((i): i is number => i !== null));
+  const plusieursFeuilles = demandes.length > 1 || lignes.some((l) => l.feuille);
 
   return (
     <div className="grid gap-6">
@@ -153,14 +159,12 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
         onChange={(e) => {
           const cible = e.target as unknown as HTMLInputElement;
           if (cible.name === "type") setType(cible.value as "controles" | "equipements");
+          if (cible.name === "maintenance") setMaintenance(cible.checked);
           setApercu(null);
-          // Options (préfixe, bâtiment…) : l'association reste valable. Autre fichier ou feuille : elle repart de zéro.
+          // Options : l'association reste valable. Autre fichier ou autres feuilles : elle repart de zéro.
           if (!["type", "fichier", "feuille"].includes(cible.name)) return;
           if (cible.name !== "feuille") setFeuilles(null);
-          setDemande(null);
-          setCorrespondance(null);
-          setExclues([]);
-          setEdition(false);
+          reinitialiser();
         }}
         onSubmit={(e) => {
           e.preventDefault();
@@ -188,16 +192,18 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
           />
         </div>
         {feuilles && (
-          <div className="grid gap-2">
-            <Label htmlFor="feuille">Feuille à importer</Label>
-            <NativeSelect id="feuille" name="feuille" defaultValue={feuilles[0]} className="w-full [&_select]:h-12">
-              {feuilles.map((f) => (
-                <NativeSelectOption key={f} value={f}>
-                  {f}
-                </NativeSelectOption>
-              ))}
-            </NativeSelect>
-          </div>
+          <fieldset className="grid gap-1">
+            <legend className="mb-1 text-sm font-medium">Feuilles à importer (une ou plusieurs)</legend>
+            <p className="mb-1 text-xs text-muted-foreground">
+              Les feuilles cochées sont importées ensemble, chacune avec ses propres colonnes.
+            </p>
+            {feuilles.map((f, i) => (
+              <label key={f} className="flex min-h-10 items-center gap-3 text-sm">
+                <input type="checkbox" name="feuille" value={f} defaultChecked={i === 0} className="size-5 shrink-0" />
+                {f}
+              </label>
+            ))}
+          </fieldset>
         )}
         {type === "equipements" && (
           <fieldset className="grid gap-4 rounded-lg border border-dashed p-4">
@@ -229,7 +235,7 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
                 maxLength={20}
                 autoComplete="off"
                 placeholder="Ex. : FR-"
-                className="h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base"
+                className={CHAMP}
               />
               <span className="text-xs text-muted-foreground">
                 Facultatif. Les lignes sans code, ou dont le code est « ABSENT », non valide ou en double, reçoivent
@@ -245,7 +251,7 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
                 maxLength={120}
                 autoComplete="off"
                 placeholder="Ex. : Bâtiment principal"
-                className="h-12 w-full min-w-0 rounded-lg border bg-transparent px-3 text-base"
+                className={CHAMP}
               />
               <span className="text-xs text-muted-foreground">
                 Facultatif. Utilisé quand la colonne « Bâtiment » est vide ou absente : nécessaire pour ranger un étage
@@ -260,8 +266,85 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
             </label>
           </fieldset>
         )}
+        {type === "equipements" && (
+          <fieldset className="grid gap-4 rounded-lg border border-dashed p-4">
+            <legend className="px-2 text-sm font-medium">Maintenances du fichier</legend>
+            <label className="flex min-h-11 items-start gap-3 text-sm">
+              <input type="checkbox" name="maintenance" className="mt-0.5 size-5 shrink-0" />
+              <span>
+                Reprendre les maintenances datées (« DATE MP 2024 », « Dernière maintenance », « Dernier étalonnage »…)
+                en contrôles : un plan par équipement, son historique et sa prochaine échéance.
+              </span>
+            </label>
+            {maintenance && (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Une maintenance dont la colonne « vigilance » ou « réserves » est vide ou dit « RAS » est enregistrée
+                  conforme ; sinon avec réserves. Seules les vigilances de la maintenance la plus récente deviennent des
+                  réserves ouvertes, les plus anciennes restent dans le commentaire du contrôle. La périodicité est lue
+                  sur la ligne (« 1 fois / an », « 2 fois / an »…), sinon celle ci-dessous.
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label htmlFor="maint_libelle">Libellé du contrôle</Label>
+                    <input
+                      id="maint_libelle"
+                      name="maint_libelle"
+                      maxLength={200}
+                      defaultValue="Maintenance préventive"
+                      className={CHAMP}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maint_famille">Famille du contrôle</Label>
+                    <input
+                      id="maint_famille"
+                      name="maint_famille"
+                      maxLength={120}
+                      defaultValue="Maintenance"
+                      className={CHAMP}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maint_caractere">Caractère</Label>
+                    <NativeSelect
+                      id="maint_caractere"
+                      name="maint_caractere"
+                      defaultValue="interne"
+                      className="w-full [&_select]:h-12"
+                    >
+                      <NativeSelectOption value="interne">Interne</NativeSelectOption>
+                      <NativeSelectOption value="obligatoire">Obligatoire</NativeSelectOption>
+                      <NativeSelectOption value="reglementaire">Réglementaire</NativeSelectOption>
+                    </NativeSelect>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="maint_periodicite">Périodicité par défaut (mois)</Label>
+                    <input
+                      id="maint_periodicite"
+                      name="maint_periodicite"
+                      type="number"
+                      min={1}
+                      max={120}
+                      defaultValue={12}
+                      className={CHAMP}
+                    />
+                  </div>
+                </div>
+                <label className="flex min-h-11 items-start gap-3 text-sm">
+                  <input type="checkbox" name="maint_conforme" className="mt-0.5 size-5 shrink-0" />
+                  <span>
+                    Le fichier n&apos;a pas de colonne « vigilance » ou « réserves » pour certaines dates (ex. suivi
+                    biomédical) : je confirme que ces maintenances ont été faites sans réserve. Sinon, ces dates restent
+                    dans les notes.
+                  </span>
+                </label>
+              </>
+            )}
+          </fieldset>
+        )}
         <Button type="submit" disabled={enCours} className="h-12 text-base">
-          {enCours && !apercu ? "Analyse…" : feuilles ? "Analyser cette feuille" : "Analyser le fichier"}
+          {enCours && !apercu ? "Analyse…" : feuilles ? "Analyser les feuilles cochées" : "Analyser le fichier"}
         </Button>
       </form>
 
@@ -279,18 +362,38 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
         </p>
       )}
 
-      {demande && edition && (
+      {demandes.length > 0 && !edition && (
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {demandes.map((d) => (
+            <button
+              key={cleFeuille(d)}
+              type="button"
+              className="w-fit text-sm underline"
+              onClick={() => {
+                const a = associations[cleFeuille(d)] ?? associationDe(d.demande);
+                setEdition({ cle: cleFeuille(d), choix: a.correspondance, exclues: a.exclues });
+              }}
+            >
+              {d.feuille ? `Ajuster les colonnes de « ${d.feuille} »` : "Ajuster l'association des colonnes"}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {edition && demandeEditee && (
         <section className="grid gap-4 rounded-lg border bg-card p-4" aria-label="Association des colonnes">
           <div className="grid gap-1">
-            <h2 className="text-lg font-semibold">Associez vos colonnes</h2>
+            <h2 className="text-lg font-semibold">
+              Associez vos colonnes{demandeEditee.feuille ? ` : « ${demandeEditee.feuille} »` : ""}
+            </h2>
             <p className="text-sm text-muted-foreground">
-              Ligne d&apos;en-têtes détectée : ligne {demande.ligne} de votre fichier. Pour chaque information de Jalon,
+              Ligne d&apos;en-têtes détectée : ligne {demandeEditee.demande.ligne}. Pour chaque information de Jalon,
               choisissez la colonne qui la contient. Les champs facultatifs peuvent rester vides. L&apos;association est
               retenue pour les prochains fichiers du même modèle.
             </p>
           </div>
           <ul className="grid gap-3">
-            {demande.champs.map((c) => (
+            {demandeEditee.demande.champs.map((c) => (
               <li key={c.cle} className="grid gap-1.5">
                 <label htmlFor={`col-${c.cle}`} className="text-sm font-medium">
                   {c.entete}
@@ -299,13 +402,16 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
                 <NativeSelect
                   id={`col-${c.cle}`}
                   className="w-full [&_select]:h-11"
-                  value={choix[c.cle] ?? ""}
+                  value={edition.choix[c.cle] ?? ""}
                   onChange={(e) =>
-                    setChoix({ ...choix, [c.cle]: e.target.value === "" ? null : Number(e.target.value) })
+                    setEdition({
+                      ...edition,
+                      choix: { ...edition.choix, [c.cle]: e.target.value === "" ? null : Number(e.target.value) },
+                    })
                   }
                 >
                   <NativeSelectOption value="">{c.obligatoire ? "— choisir —" : "— non utilisée —"}</NativeSelectOption>
-                  {demande.entetes.map((entete, i) => (
+                  {demandeEditee.demande.entetes.map((entete, i) => (
                     <NativeSelectOption key={i} value={i}>
                       {`Colonne ${i + 1}${entete ? ` — ${entete}` : " (sans titre)"}`}
                     </NativeSelectOption>
@@ -315,21 +421,27 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
               </li>
             ))}
           </ul>
-          {type === "equipements" && demande.entetes.some((_, i) => !associees.has(i)) && (
+          {type === "equipements" && demandeEditee.demande.entetes.some((_, i) => !associees.has(i)) && (
             <fieldset className="grid gap-2">
               <legend className="mb-1 text-sm font-medium">Autres colonnes reprises dans les notes</legend>
               <p className="text-xs text-muted-foreground">
                 Décochez celles qui n&apos;apportent rien : les notes d&apos;un équipement sont limitées à 2 000
-                caractères.
+                caractères. Avec la reprise des maintenances, les colonnes de chaque maintenance vont dans son contrôle
+                et non dans les notes.
               </p>
-              {demande.entetes.map((entete, i) =>
+              {demandeEditee.demande.entetes.map((entete, i) =>
                 associees.has(i) ? null : (
                   <label key={i} className="flex min-h-10 items-center gap-3 text-sm">
                     <input
                       type="checkbox"
                       className="size-5 shrink-0"
-                      checked={!exclues.includes(i)}
-                      onChange={(e) => setExclues(e.target.checked ? exclues.filter((x) => x !== i) : [...exclues, i])}
+                      checked={!edition.exclues.includes(i)}
+                      onChange={(e) =>
+                        setEdition({
+                          ...edition,
+                          exclues: e.target.checked ? edition.exclues.filter((x) => x !== i) : [...edition.exclues, i],
+                        })
+                      }
                     />
                     {`Colonne ${i + 1}${entete ? ` — ${entete}` : " (sans titre)"}`}
                   </label>
@@ -337,27 +449,31 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
               )}
             </fieldset>
           )}
-          <Button
-            type="button"
-            disabled={enCours}
-            className="h-12 text-base"
-            onClick={() => {
-              setCorrespondance(choix);
-              lancer(analyserImport, choix, exclues);
-            }}
-          >
-            {enCours ? "Analyse…" : "Valider l'association et analyser"}
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              type="button"
+              disabled={enCours}
+              className="h-12 flex-1 text-base"
+              onClick={() => {
+                const suivantes = {
+                  ...associations,
+                  [edition.cle]: { correspondance: edition.choix, exclues: edition.exclues },
+                };
+                setAssociations(suivantes);
+                lancer(analyserImport, suivantes);
+              }}
+            >
+              {enCours ? "Analyse…" : "Valider l'association et analyser"}
+            </Button>
+            <Button type="button" variant="outline" className="h-12 text-base" onClick={() => setEdition(null)}>
+              Fermer
+            </Button>
+          </div>
         </section>
       )}
 
       {apercu && (
         <section className="grid gap-4" aria-label="Aperçu de l'import">
-          {demande && !edition && (
-            <button type="button" className="w-fit text-sm underline" onClick={() => setEdition(true)}>
-              Ajuster l&apos;association des colonnes
-            </button>
-          )}
           {apercu.importable ? (
             <div className="grid gap-3 rounded-lg border bg-card border-emerald-600/40 p-4">
               <p className="font-medium">Prêt à importer :</p>
@@ -389,10 +505,12 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
             {lignes.map((l) => {
               const s = STATUTS[l.statut];
               return (
-                <li key={l.numero} className="grid gap-1 rounded-lg border bg-card p-3 text-sm">
+                <li key={`${l.feuille ?? ""}-${l.numero}`} className="grid gap-1 rounded-lg border bg-card p-3 text-sm">
                   <div className="flex items-start gap-2">
                     <s.icone className={cn("mt-0.5 size-4 shrink-0", s.classe)} aria-hidden />
-                    <span className="text-muted-foreground">Ligne {l.numero}</span>
+                    <span className="text-muted-foreground">
+                      {plusieursFeuilles && l.feuille ? `${l.feuille} · ` : ""}Ligne {l.numero}
+                    </span>
                     <span className={cn("ml-auto shrink-0 font-medium", s.classe)}>{s.libelle}</span>
                   </div>
                   {l.resume && <div>{l.resume}</div>}

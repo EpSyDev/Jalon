@@ -7,6 +7,8 @@ import {
   type Cellule,
   type Existant,
   type OptionsEquipements,
+  type OptionsMaintenance,
+  lireFrequence,
 } from "@/lib/metier/import";
 
 const VIDE: Existant = {
@@ -283,12 +285,12 @@ describe("classeurs à plusieurs feuilles", () => {
       { data: [[{ value: "Code" }], [{ value: "B1" }]], sheet: "Lits" },
     ]).toBuffer();
     const sans = await lireFichier("parc.xlsx", contenu);
-    expect(sans.tableau).toBeUndefined();
+    expect(sans.tableaux).toBeUndefined();
     expect(sans.feuilles).toEqual(["Fauteuils", "Lits"]);
-    const avec = await lireFichier("parc.xlsx", contenu, "Lits");
-    expect(avec.tableau?.[1][0]).toBe("B1");
-    expect((await lireFichier("parc.xlsx", contenu, "Absente")).erreur).toMatch(/introuvable/);
-    expect((await lireFichier("parc.xlsm", contenu, "Lits")).tableau).toBeDefined();
+    const avec = await lireFichier("parc.xlsx", contenu, ["Lits"]);
+    expect(avec.tableaux?.[0].tableau[1][0]).toBe("B1");
+    expect((await lireFichier("parc.xlsx", contenu, ["Absente"])).erreur).toMatch(/introuvable/);
+    expect((await lireFichier("parc.xlsm", contenu, ["Lits"])).tableaux).toBeDefined();
   });
 
   it("une seule feuille remplie : lue sans question", async () => {
@@ -296,6 +298,152 @@ describe("classeurs à plusieurs feuilles", () => {
       { data: [[{ value: "Code" }], [{ value: "A1" }]], sheet: "Données" },
       { data: [[]], sheet: "Vide" },
     ]).toBuffer();
-    expect((await lireFichier("x.xlsx", contenu)).tableau?.[1][0]).toBe("A1");
+    expect((await lireFichier("x.xlsx", contenu)).tableaux?.[0].tableau[1][0]).toBe("A1");
   });
+});
+
+describe("maintenances du fichier reprises en contrôles", () => {
+  const MAINTENANCE: OptionsMaintenance = {
+    libelle: "Maintenance préventive",
+    famille: "Maintenance",
+    caractere: "interne",
+    periodiciteMois: 12,
+    conformeSansVigilance: false,
+  };
+  // Relevé MP : une date par campagne, suivie de sa vigilance et de son observation.
+  const RELEVE_MP: Cellule[][] = [
+    [null, null, "MP 2024", null, null, "MP 2025", null, null],
+    [
+      "NUMERO INTERNE",
+      "MARQUE",
+      "DATE MP 2024",
+      "VIGILANCE",
+      "OBSERVATION",
+      "DATE MP 2025",
+      "VIGILANCE",
+      "OBSERVATION",
+    ],
+    [
+      "UG1",
+      "INVACARE",
+      new Date(Date.UTC(2024, 6, 2)),
+      "ROUILLE",
+      "RAS",
+      "17/09/25",
+      "- ROUILLE CREMAILLERE\n- FREIN USE",
+      "RESSERRAGE",
+    ],
+    ["UG2", "INVACARE", new Date(Date.UTC(2024, 6, 2)), "RAS", null, "X", null, null],
+    ["UG3", "SUNRISE", null, null, null, null, null, null],
+  ];
+
+  it("une campagne datée devient un contrôle ; les vigilances de la plus récente, des réserves ouvertes", () => {
+    const p = planifier(RELEVE_MP, { maintenance: MAINTENANCE });
+    expect(p.importable).toBe(true);
+    expect(p.operations.types).toEqual([
+      {
+        cle: "maintenance|maintenance preventive",
+        famille: { nouveau: "Maintenance" },
+        libelle: "Maintenance préventive",
+        caractere: "interne",
+        periodicite_mois: 12,
+      },
+    ]);
+    expect(p.operations.maintenances.map((m) => m.code)).toEqual(["UG1", "UG2"]);
+    const [ug1, ug2] = p.operations.maintenances;
+    expect(ug1.controles).toEqual([
+      {
+        date: "2024-07-02",
+        resultat: "avec_reserves",
+        nb_reserves: 1,
+        reserves: [],
+        commentaire: "Repris à l'import\nMP 2024 · VIGILANCE : ROUILLE\nMP 2024 · OBSERVATION : RAS",
+      },
+      {
+        date: "2025-09-17",
+        resultat: "avec_reserves",
+        nb_reserves: 2,
+        reserves: ["ROUILLE CREMAILLERE", "FREIN USE"],
+        commentaire:
+          "Repris à l'import\nMP 2025 · VIGILANCE : - ROUILLE CREMAILLERE\n- FREIN USE\nMP 2025 · OBSERVATION : RESSERRAGE",
+      },
+    ]);
+    // « X » n'est pas une date : la campagne 2025 de UG2 reste dans les notes.
+    expect(ug2.controles).toMatchObject([{ date: "2024-07-02", resultat: "conforme", nb_reserves: null }]);
+    expect(p.operations.equipements[1].notes).toBe("MP 2025 · DATE MP 2025 : X");
+    expect(p.operations.equipements[0].notes).toBeNull();
+    expect(p.lignes[0].resume).toMatch(
+      /2 maintenances \(dernière le 17\/09\/2025, 2 réserves ouvertes, tous les 12 mois\)/,
+    );
+  });
+
+  it("sans l'option : tout reste dans les notes, comme avant", () => {
+    const p = planifier(RELEVE_MP);
+    expect(p.operations.maintenances).toEqual([]);
+    expect(p.operations.equipements[0].notes).toMatch(/^MP 2024 · DATE MP 2024 : 02\/07\/2024/);
+  });
+
+  // Suivi biomédical : une seule date, sans vigilance, et une périodicité par ligne.
+  const SUIVI: Cellule[][] = [
+    ["ID", "Marque", "Périodicité maintenance", "Dernière maintenance", "Prochaine maintenance prévue"],
+    ["ECG-1", "COLSON", "1 fois / an", new Date(Date.UTC(2025, 9, 6)), new Date(Date.UTC(2026, 9, 1))],
+    ["ECG-6", "COLSON", "2 fois / an", "-", new Date(Date.UTC(2026, 9, 1))],
+    ["PS-1", "BBRAUN", "2 fois / an", new Date(Date.UTC(2025, 10, 27)), null],
+  ];
+
+  it("sans colonne de vigilance : rien sans confirmation explicite, conforme avec", () => {
+    expect(planifier(SUIVI, { maintenance: MAINTENANCE }).operations.maintenances).toEqual([]);
+    const p = planifier(SUIVI, { maintenance: { ...MAINTENANCE, conformeSansVigilance: true } });
+    expect(p.operations.maintenances).toEqual([
+      expect.objectContaining({
+        code: "ECG-1",
+        periodicite_surcharge: null,
+        controles: [expect.objectContaining({ date: "2025-10-06", resultat: "conforme" })],
+      }),
+      expect.objectContaining({ code: "PS-1", periodicite_surcharge: 6 }),
+    ]);
+    // La périodicité lue passe dans le plan ; la prochaine date prévue reste une information des notes.
+    expect(p.operations.equipements[0].notes).toBe("Prochaine maintenance prévue : 01/10/2026");
+    expect(p.operations.equipements[1].notes).toBe(
+      "Périodicité maintenance : 2 fois / an\nDernière maintenance : -\nProchaine maintenance prévue : 01/10/2026",
+    );
+  });
+
+  it("type déjà présent (même famille, même libellé) : réutilisé, périodicité différente en surcharge du plan", () => {
+    const existant: Existant = {
+      ...VIDE,
+      familles: [{ id: "f1", libelle: "maintenance" }],
+      types: [
+        { id: "t1", famille_id: "f1", libelle: "Maintenance préventive", caractere: "interne", periodicite_mois: 6 },
+      ],
+    };
+    const p = planifier(SUIVI, { maintenance: { ...MAINTENANCE, conformeSansVigilance: true } }, existant);
+    expect(p.operations.types).toEqual([]);
+    expect(p.operations.maintenances.map((m) => [m.type, m.periodicite_surcharge])).toEqual([
+      [{ id: "t1" }, 12],
+      [{ id: "t1" }, null],
+    ]);
+  });
+
+  it("fréquences lisibles", () => {
+    expect(
+      ["1 fois / an", "2 fois par an", "4 fois/an", "tous les 6 mois", "tous les 2 ans", "12", "1 an"].map(
+        lireFrequence,
+      ),
+    ).toEqual([12, 6, 3, 6, 24, 12, 12]);
+    expect(lireFrequence("5 fois / an")).toBeNaN();
+    expect(lireFrequence("annuel")).toBeNaN();
+  });
+});
+
+it("plusieurs feuilles : lues ensemble, dans l'ordre demandé", async () => {
+  const contenu = await writeXlsxFile([
+    { data: [[{ value: "Code" }], [{ value: "A1" }]], sheet: "Fauteuils" },
+    { data: [[{ value: "Code" }], [{ value: "B1" }]], sheet: "Lits" },
+  ]).toBuffer();
+  const lu = await lireFichier("parc.xlsx", contenu, ["Lits", "Fauteuils"]);
+  expect(lu.tableaux?.map((t) => [t.feuille, t.tableau[1][0]])).toEqual([
+    ["Lits", "B1"],
+    ["Fauteuils", "A1"],
+  ]);
 });

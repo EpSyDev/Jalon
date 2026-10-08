@@ -89,4 +89,45 @@ describe("import réel (pilote postgres, RLS technicien)", () => {
     expect(r.reserves).toEqual([{ description: "À détailler (reprise de l'import)", plan: "Vérif A" }]);
     expect(r.presta.n).toBe(2);
   });
+
+  it("maintenances reprises : plan par équipement, historique, réserves ouvertes, échéance calculée", async () => {
+    const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
+      const lu = lireTableau(
+        [
+          [null, null, "MP 2024", null, "MP 2025", null],
+          ["NUMERO INTERNE", "MARQUE", "DATE MP 2024", "VIGILANCE", "DATE MP 2025", "VIGILANCE"],
+          ["MP-1", "INVACARE", "02/07/2024", "RAS", "17/09/2025", "- ROUILLE\n- FREIN"],
+          ["MP-2", "SUNRISE", "02/07/2024", null, null, null],
+        ],
+        "equipements",
+      );
+      if (lu.erreur) throw new Error(lu.erreur);
+      const plan = planifierEquipements(lu.lignes!, await lireExistant(tx), {
+        maintenance: {
+          libelle: "MP fauteuil",
+          famille: "Maintenance import",
+          caractere: "interne",
+          periodiciteMois: 12,
+          conformeSansVigilance: false,
+        },
+      });
+      expect(plan.importable).toBe(true);
+      const bilan = await executerEquipements(tx, plan.operations);
+      const echeances = await tx<{ code: string; dernier: string; prochaine: string; ouvertes: number }[]>`
+        select v.equipement_code as code, v.dernier_controle::text as dernier, v.prochaine_echeance::text as prochaine,
+          v.nb_reserves_ouvertes as ouvertes
+        from public.v_plans_controle_echeance v where v.type_libelle = 'MP fauteuil' order by 1`;
+      const reserves = await tx<{ description: string }[]>`
+        select r.description from public.reserves r join public.controles c on c.id = r.controle_id
+        join public.plans_controle pl on pl.id = c.plan_controle_id join public.equipements e on e.id = pl.equipement_id
+        where e.code = 'MP-1' order by 1`;
+      return { bilan, echeances, reserves };
+    });
+    expect(r.bilan).toMatchObject({ equipements: 2, plans: 2, controles: 3, reserves: 2 });
+    expect(r.echeances).toEqual([
+      { code: "MP-1", dernier: "2025-09-17", prochaine: "2026-09-17", ouvertes: 2 },
+      { code: "MP-2", dernier: "2024-07-02", prochaine: "2025-07-02", ouvertes: 0 },
+    ]);
+    expect(r.reserves.map((x) => x.description)).toEqual(["FREIN", "ROUILLE"]);
+  });
 });

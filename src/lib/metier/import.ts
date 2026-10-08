@@ -130,7 +130,8 @@ export function lireDate(c: Cellule | undefined): { valeur: string | null; erreu
     return { valeur: c.toISOString().slice(0, 10) };
   }
   const t = String(c).trim();
-  for (const motif of ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd"]) {
+  // « 16/09/25 » (année sur deux chiffres) : fréquent dans les relevés saisis à la main.
+  for (const motif of ["dd/MM/yyyy", "d/M/yyyy", "yyyy-MM-dd", "dd/MM/yy", "d/M/yy"]) {
     const d = parse(t, motif, new Date(2000, 0, 1));
     if (isValid(d) && d.getFullYear() >= 1900) {
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -204,11 +205,20 @@ function titreCourt(t: string, max = 40): string {
 
 // --- Lecture du tableau --------------------------------------------------------
 
+/** Où sont les maintenances dans la feuille (numéros de colonnes) : partagé par toutes ses lignes. */
+export type StructureMaintenance = {
+  campagnes: { date: number; colonnes: number[]; vigilances: number[] }[];
+  periodicite: number | null;
+};
+
 export type LigneBrute = {
   numero: number;
+  /** Feuille d'origine, quand plusieurs feuilles d'un classeur sont importées ensemble. */
+  feuille?: string;
   valeurs: Record<string, Cellule>;
-  /** Colonnes non associées à un champ : reprises dans les notes avec leur titre. */
-  autres?: { titre: string; valeur: string }[];
+  /** Colonnes non associées à un champ : reprises dans les notes avec leur titre (ou en maintenances). */
+  autres?: { i: number; titre: string; valeur: string }[];
+  structure?: StructureMaintenance;
   /** Ligne d'une seule cellule (titre de section, commentaire isolé) ou de total : jamais importée. */
   ignoree?: { motif: "titre" | "total"; texte: string };
 };
@@ -395,6 +405,13 @@ export function lireTableau(
 
   // Colonnes reprises dans les notes (équipements) : ni associées à un champ, ni exclues par l'utilisateur.
   const prises = new Set([...position.values(), ...exclues]);
+  const structure =
+    type === "equipements"
+      ? structureMaintenance(
+          tableau[indexEntete].map((c) => texte(c) ?? ""),
+          prises,
+        )
+      : undefined;
   const autres =
     type === "equipements"
       ? entetes.map((t, i) => ({ i, titre: t || `Colonne ${i + 1}` })).filter((c) => !prises.has(c.i))
@@ -416,13 +433,71 @@ export function lireTableau(
     const valeurs: Record<string, Cellule> = {};
     for (const [cle, p] of position) valeurs[cle] = tableau[i][p] ?? null;
     const notes = autres
-      .map((c) => ({ titre: c.titre, valeur: texteNote(tableau[i][c.i]) }))
-      .filter((c): c is { titre: string; valeur: string } => c.valeur !== null);
-    lignes.push({ numero, valeurs, ...(notes.length ? { autres: notes } : {}) });
+      .map((c) => ({ i: c.i, titre: c.titre, valeur: texteNote(tableau[i][c.i]) }))
+      .filter((c): c is { i: number; titre: string; valeur: string } => c.valeur !== null);
+    lignes.push({ numero, valeurs, structure, ...(notes.length ? { autres: notes } : {}) });
   }
   if (!lignes.some((l) => !l.ignoree)) return { erreur: "Aucune ligne de données sous l'en-tête." };
   if (lignes.length > MAX_LIGNES) return { erreur: `Trop de lignes (${lignes.length}) : ${MAX_LIGNES} maximum.` };
   return { lignes, demande };
+}
+
+// --- Maintenances présentes dans le fichier ------------------------------------------------------------------------
+
+/** Dates de maintenance passées : « DATE MP 2021 », « Dernière maintenance », « Dernier étalonnage »… */
+const SUJETS_MAINTENANCE = ["mp", "maintenance", "controle", "verification", "visite", "etalonnage", "entretien"];
+
+function estDateMaintenance(entete: string): boolean {
+  const e = normaliser(entete);
+  if (["prochaine", "prochain", "acquisition", "service"].some((m) => contientMot(e, m))) return false;
+  const date = ["date", "derniere", "dernier"].some((m) => contientMot(e, m));
+  return date && SUJETS_MAINTENANCE.some((m) => contientMot(e, m));
+}
+
+/** Colonne de vigilance ou de réserves : son contenu, s'il dit quelque chose, rend la maintenance « avec réserves ». */
+function estVigilance(entete: string): boolean {
+  const premier = normaliser(entete).split(" ")[0] ?? "";
+  return ["vigilance", "reserve", "anomalie", "defaut"].some((m) => premier === m || premier === `${m}s`);
+}
+
+/**
+ * Campagnes de maintenance d'une feuille. Plusieurs colonnes de date (relevé MP année par année) : chaque campagne
+ * va de sa date jusqu'à la date suivante (vigilance, observation…). Une seule colonne de date (suivi biomédical) :
+ * la campagne se limite à cette date. Les colonnes associées à un champ ou exclues n'en font jamais partie.
+ */
+function structureMaintenance(brutes: string[], prises: Set<number>): StructureMaintenance {
+  const periodicite = brutes.findIndex(
+    (e, i) => !prises.has(i) && ["periodicite", "frequence"].some((m) => contientMot(normaliser(e), m)),
+  );
+  const dates = brutes.map((e, i) => i).filter((i) => !prises.has(i) && estDateMaintenance(brutes[i]));
+  const campagnes = dates.map((date, k) => {
+    const fin = dates.length > 1 ? (dates[k + 1] ?? brutes.length) : date + 1;
+    const colonnes: number[] = [];
+    for (let i = date + 1; i < fin; i++) if (!prises.has(i) && i !== periodicite) colonnes.push(i);
+    return { date, colonnes, vigilances: colonnes.filter((i) => estVigilance(brutes[i])) };
+  });
+  return { campagnes, periodicite: periodicite === -1 ? null : periodicite };
+}
+
+/** « 1 fois / an » → 12, « 2 fois par an » → 6, « tous les 6 mois » → 6, ou les formes de lirePeriodicite. */
+export function lireFrequence(brut: string | null): number {
+  if (brut === null) return NaN;
+  const n = normaliser(brut);
+  const fois = /^(\d+) fois (?:par |p )?(?:an|annee)$/.exec(n);
+  if (fois) return 12 % Number(fois[1]) === 0 && Number(fois[1]) > 0 ? 12 / Number(fois[1]) : NaN;
+  const tous = /^tous les (\d+) (mois|ans?)$/.exec(n);
+  if (tous) return tous[2] === "mois" ? Number(tous[1]) : Number(tous[1]) * 12;
+  return lirePeriodicite(brut);
+}
+
+/** Lignes d'une vigilance (« - ROUILLE\n- FREIN ») ; « RAS », « OK », « - » ne disent rien. */
+function lignesVigilance(valeur: string): string[] {
+  return valeur
+    .split("\n")
+    .map((l) => l.replace(/^[\s\-–•*]+/, "").trim())
+    .filter(
+      (l) => l !== "" && !["ras", "r a s", "ok", "neant", "rien", "aucune", "aucun", "x"].includes(normaliser(l)),
+    );
 }
 
 /** Ligne ignorée par la lecture : affichée dans l'aperçu, jamais importée. */
@@ -452,7 +527,7 @@ export type Existant = {
 };
 
 export type StatutLigne = "creation" | "ignoree" | "erreur";
-export type LigneApercu = { numero: number; statut: StatutLigne; resume: string; erreurs: string[] };
+export type LigneApercu = { numero: number; feuille?: string; statut: StatutLigne; resume: string; erreurs: string[] };
 
 /** Référence vers un élément existant ({ id }) ou créé par l'import ({ nouveau: clé }). */
 export type Ref = { id: string } | { nouveau: string };
@@ -494,6 +569,22 @@ export type OperationsEquipements = {
     notes: string | null;
     date_mise_en_service: string | null;
     statut: "en_service" | "hors_service" | "reforme";
+  }[];
+  /** Type de contrôle créé pour les maintenances reprises (au plus un par import). */
+  types: { cle: string; famille: Ref; libelle: string; caractere: string; periodicite_mois: number }[];
+  /** Un plan par équipement créé, avec ses maintenances passées. */
+  maintenances: {
+    code: string;
+    type: Ref;
+    periodicite_surcharge: number | null;
+    controles: {
+      date: string;
+      resultat: "conforme" | "avec_reserves";
+      nb_reserves: number | null;
+      commentaire: string;
+      /** Réserves ouvertes : seulement pour la maintenance la plus récente (les anciennes restent au commentaire). */
+      reserves: string[];
+    }[];
   }[];
 };
 
@@ -675,7 +766,7 @@ export function planifierControles(lignes: LigneBrute[], existant: Existant): Pl
   }
 
   return {
-    lignes: apercu,
+    lignes: avecFeuilles(apercu, lignes),
     operations: ops,
     importable: apercu.every((l) => l.statut !== "erreur") && ops.plans.length > 0,
   };
@@ -692,7 +783,75 @@ export type OptionsEquipements = {
   batimentParDefaut?: string | null;
   /** Les lignes d'une seule cellule (« AUTOTENSIOMETRE ») donnent la famille des lignes qui suivent. */
   titresFamille?: boolean;
+  /** Maintenances datées du fichier reprises en contrôles : un plan par équipement créé. */
+  maintenance?: OptionsMaintenance | null;
 };
+
+export type OptionsMaintenance = {
+  /** Type de contrôle des plans créés (ex. « Maintenance préventive » dans la famille « Maintenance »). */
+  libelle: string;
+  famille: string;
+  caractere: "reglementaire" | "obligatoire" | "interne";
+  /** Périodicité du type, et des plans dont la ligne n'en donne pas de lisible. */
+  periodiciteMois: number;
+  /** Sans colonne de vigilance ou de réserves, une maintenance datée est enregistrée conforme (choix explicite). */
+  conformeSansVigilance: boolean;
+};
+
+type ControleRepris = OperationsEquipements["maintenances"][number]["controles"][number];
+
+const enFrancais = (iso: string) => iso.split("-").reverse().join("/");
+
+/**
+ * Maintenances d'une ligne : une campagne devient un contrôle si sa date est lisible et passée, et si son résultat
+ * se lit dans le fichier (colonne de vigilance) ou a été déclaré conforme par l'utilisateur. Le reste demeure
+ * dans les notes. Les vigilances de la campagne la plus récente deviennent des réserves ouvertes.
+ */
+function reprendreMaintenances(
+  autres: NonNullable<LigneBrute["autres"]>,
+  structure: StructureMaintenance,
+  options: OptionsMaintenance,
+  aujourdhui: string,
+) {
+  const valeur = new Map(autres.map((a) => [a.i, a]));
+  const consommees = new Set<number>();
+  const controles: ControleRepris[] = [];
+  const erreurs: string[] = [];
+  for (const campagne of structure.campagnes) {
+    const date = lireDate(valeur.get(campagne.date)?.valeur ?? null).valeur;
+    if (!date || date > aujourdhui) continue;
+    if (campagne.vigilances.length === 0 && !options.conformeSansVigilance) continue;
+    const textes = campagne.colonnes.flatMap((i) => valeur.get(i) ?? []);
+    const reserves = campagne.vigilances.flatMap((i) => lignesVigilance(valeur.get(i)?.valeur ?? ""));
+    const commentaire = ["Repris à l'import", ...textes.map((t) => `${t.titre} : ${t.valeur}`)].join("\n");
+    if (commentaire.length > 2000) {
+      erreurs.push(`Maintenance du ${enFrancais(date)} : ${commentaire.length} caractères pour 2 000 au maximum`);
+    }
+    controles.push({
+      date,
+      resultat: reserves.length ? "avec_reserves" : "conforme",
+      nb_reserves: reserves.length || null,
+      commentaire,
+      reserves: reserves.map((r) => r.slice(0, 2000)),
+    });
+    consommees.add(campagne.date);
+    textes.forEach((t) => consommees.add(t.i));
+  }
+  const recente = controles.reduce<ControleRepris | null>((m, c) => (!m || c.date > m.date ? c : m), null);
+  for (const c of controles) if (c !== recente) c.reserves = [];
+
+  let periodicite = options.periodiciteMois;
+  const brute = structure.periodicite === null ? undefined : valeur.get(structure.periodicite);
+  if (brute && controles.length) {
+    const n = lireFrequence(brute.valeur);
+    // Illisible : la périodicité par défaut s'applique et le texte d'origine reste dans les notes.
+    if (n >= 1 && n <= 120) {
+      periodicite = n;
+      consommees.add(brute.i);
+    }
+  }
+  return { controles, consommees, erreurs, periodicite };
+}
 
 const MOTIFS_CODE = { absent: "non repris", invalide: "non valide", double: "en double" } as const;
 
@@ -709,7 +868,14 @@ export function planifierEquipements(
   const cleLoc = (b: string, n: string | null, l: string | null) => [b, n ?? "", l ?? ""].map(normaliser).join("|");
   const localisations = index(existant.localisations, (l) => cleLoc(l.batiment, l.niveau, l.local));
 
-  const ops: OperationsEquipements = { familles: [], univers: [], localisations: [], equipements: [] };
+  const ops: OperationsEquipements = {
+    familles: [],
+    univers: [],
+    localisations: [],
+    equipements: [],
+    types: [],
+    maintenances: [],
+  };
   /** Référentiel désigné par son libellé : existant (id) ou créé une seule fois par l'import. */
   const referentiel = (existants: { id: string; libelle: string }[], creations: string[]) => {
     const parCle = index(existants, (x) => normaliser(x.libelle));
@@ -751,7 +917,29 @@ export function planifierEquipements(
   const batimentParDefaut = options.batimentParDefaut?.trim() || null;
   let familleDeSection: string | null = null;
 
-  for (const { numero, valeurs: v, autres, ignoree } of lignes) {
+  // Type de contrôle des maintenances reprises : existant (même famille, même libellé) ou créé une fois.
+  let typeMaintenance: { ref: Ref; periodicite: number } | null = null;
+  const typeDesMaintenances = (m: OptionsMaintenance) => {
+    if (typeMaintenance) return typeMaintenance;
+    const famille = refFamille(m.famille)!;
+    const trouve =
+      "id" in famille
+        ? existant.types.find((t) => t.famille_id === famille.id && normaliser(t.libelle) === normaliser(m.libelle))
+        : undefined;
+    if (trouve) typeMaintenance = { ref: { id: trouve.id }, periodicite: trouve.periodicite_mois };
+    else {
+      const cle = `${normaliser(m.famille)}|${normaliser(m.libelle)}`;
+      ops.types.push({ cle, famille, libelle: m.libelle, caractere: m.caractere, periodicite_mois: m.periodiciteMois });
+      typeMaintenance = { ref: { nouveau: cle }, periodicite: m.periodiciteMois };
+    }
+    return typeMaintenance;
+  };
+  let feuillePrecedente: string | undefined;
+
+  for (const { numero, feuille, valeurs: v, autres, ignoree, structure } of lignes) {
+    // Une nouvelle feuille repart sans famille de section.
+    if (feuille !== feuillePrecedente) familleDeSection = null;
+    feuillePrecedente = feuille;
     if (ignoree) {
       const titreFamille = options.titresFamille && ignoree.motif === "titre";
       if (titreFamille) familleDeSection = ignoree.texte.slice(0, MAX_TEXTE.court);
@@ -817,7 +1005,13 @@ export function planifierEquipements(
       }
     }
 
-    const notes = [...precisions, texteNote(v.notes), ...(autres ?? []).map((a) => `${a.titre} : ${a.valeur}`)]
+    const reprise =
+      options.maintenance && structure
+        ? reprendreMaintenances(autres ?? [], structure, options.maintenance, aujourdhui)
+        : null;
+    if (reprise) erreurs.push(...reprise.erreurs);
+    const restants = (autres ?? []).filter((a) => !reprise?.consommees.has(a.i));
+    const notes = [...precisions, texteNote(v.notes), ...restants.map((a) => `${a.titre} : ${a.valeur}`)]
       .filter(Boolean)
       .join("\n");
     if (!code && !codeAuto) {
@@ -918,6 +1112,23 @@ export function planifierEquipements(
       date_mise_en_service: miseEnService.valeur,
       statut: statut ?? "en_service",
     });
+    let maintenances: string | null = null;
+    if (reprise && reprise.controles.length && options.maintenance) {
+      const type = typeDesMaintenances(options.maintenance);
+      ops.maintenances.push({
+        code: codeFinal,
+        type: type.ref,
+        periodicite_surcharge: reprise.periodicite !== type.periodicite ? reprise.periodicite : null,
+        controles: reprise.controles,
+      });
+      const derniere = reprise.controles.reduce((m, c) => (c.date > m.date ? c : m));
+      const n = reprise.controles.length;
+      maintenances = `${n} maintenance${n > 1 ? "s" : ""} (dernière le ${enFrancais(derniere.date)}${
+        derniere.reserves.length
+          ? `, ${derniere.reserves.length} réserve${derniere.reserves.length > 1 ? "s" : ""} ouverte${derniere.reserves.length > 1 ? "s" : ""}`
+          : ""
+      }, tous les ${reprise.periodicite} mois)`;
+    }
     const genere = codeAuto ? ` (code généré${motifCode ? `, « ${codeBrut} » ${MOTIFS_CODE[motifCode]}` : ""})` : "";
     apercu.push({
       numero,
@@ -927,6 +1138,7 @@ export function planifierEquipements(
         famille,
         univers,
         [batiment, niveau, local].filter(Boolean).join(" / "),
+        maintenances,
       ]
         .filter(Boolean)
         .join(" · "),
@@ -935,8 +1147,13 @@ export function planifierEquipements(
   }
 
   return {
-    lignes: apercu,
+    lignes: avecFeuilles(apercu, lignes),
     operations: ops,
     importable: apercu.every((l) => l.statut !== "erreur") && ops.equipements.length > 0,
   };
+}
+
+/** Chaque ligne lue donne exactement une ligne d'aperçu : on y reporte sa feuille d'origine. */
+function avecFeuilles(apercu: LigneApercu[], lignes: LigneBrute[]): LigneApercu[] {
+  return apercu.map((a, k) => (lignes[k]?.feuille ? { ...a, feuille: lignes[k].feuille } : a));
 }

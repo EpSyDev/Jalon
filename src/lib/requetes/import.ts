@@ -143,11 +143,13 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
       )}`,
   );
 
+  const equipements = nouveauxIds(ops.equipements.map((e) => e.code));
   await parLots(
     ops.equipements,
     (lot) =>
       tx`insert into public.equipements ${tx(
         lot.map((e) => ({
+          id: equipements.get(e.code)!,
           code: e.code,
           libelle: e.libelle,
           univers_id: resoudreOuNull(e.univers, univers),
@@ -163,10 +165,61 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
       )}`,
   );
 
+  // Maintenances reprises : type (au plus un), un plan par équipement, ses contrôles et les réserves ouvertes.
+  const types = nouveauxIds(ops.types.map((t) => t.cle));
+  await parLots(
+    ops.types,
+    (lot) =>
+      tx`insert into public.types_controle ${tx(
+        lot.map((t) => ({
+          id: types.get(t.cle)!,
+          libelle: t.libelle,
+          famille_id: resoudre(t.famille, familles),
+          caractere: t.caractere,
+          periodicite_mois: t.periodicite_mois,
+        })),
+      )}`,
+  );
+  const plans = ops.maintenances.map((m) => ({ ...m, id: randomUUID() }));
+  await parLots(
+    plans,
+    (lot) =>
+      tx`insert into public.plans_controle ${tx(
+        lot.map((p) => ({
+          id: p.id,
+          type_controle_id: resoudre(p.type, types),
+          equipement_id: equipements.get(p.code)!,
+          periodicite_mois_surcharge: p.periodicite_surcharge,
+        })),
+      )}`,
+  );
+  const controles = plans.flatMap((p) => p.controles.map((c) => ({ ...c, plan: p.id, id: randomUUID() })));
+  await parLots(
+    controles,
+    (lot) =>
+      tx`insert into public.controles ${tx(
+        lot.map((c) => ({
+          id: c.id,
+          plan_controle_id: c.plan,
+          date_realisation: c.date,
+          resultat: c.resultat,
+          nb_reserves_declare: c.nb_reserves,
+          commentaire: c.commentaire,
+        })),
+      )}`,
+  );
+  const reserves = controles.flatMap((c) =>
+    c.reserves.map((description) => ({ controle_id: c.id, date_constat: c.date, description })),
+  );
+  await parLots(reserves, (lot) => tx`insert into public.reserves ${tx(lot)}`);
+
   return {
     familles: ops.familles.length,
     univers: ops.univers.length,
     localisations: ops.localisations.length,
     equipements: ops.equipements.length,
+    plans: plans.length,
+    controles: controles.length,
+    reserves: reserves.length,
   };
 }

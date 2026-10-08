@@ -12,13 +12,14 @@ const FEUILLE_AIDE = "Mode d'emploi";
 
 const SIGNATURE_ZIP = [0x50, 0x4b, 0x03, 0x04];
 
-export type LectureFichier = { tableau?: Cellule[][]; erreur?: string; feuilles?: string[] };
+export type Feuille = { feuille: string | null; tableau: Cellule[][] };
+export type LectureFichier = { tableaux?: Feuille[]; erreur?: string; feuilles?: string[] };
 
 /**
- * Lit un classeur (.xlsx, .xlsm) ou un CSV. Un classeur à plusieurs feuilles non vides exige le choix d'une feuille :
- * on renvoie alors leurs noms (feuilles) au lieu de deviner.
+ * Lit un classeur (.xlsx, .xlsm) ou un CSV. Un classeur à plusieurs feuilles non vides exige le choix des feuilles
+ * (une ou plusieurs) : on renvoie alors leurs noms (feuilles) au lieu de deviner.
  */
-export async function lireFichier(nom: string, contenu: Buffer, feuille?: string): Promise<LectureFichier> {
+export async function lireFichier(nom: string, contenu: Buffer, choisies?: string[]): Promise<LectureFichier> {
   if (contenu.length === 0) return { erreur: "Fichier vide." };
   if (contenu.length > TAILLE_MAX) return { erreur: "Fichier trop volumineux (5 Mo maximum)." };
   const extension = nom.toLowerCase().split(".").pop();
@@ -32,21 +33,18 @@ export async function lireFichier(nom: string, contenu: Buffer, feuille?: string
       const remplies = feuilles
         .filter((f) => f.sheet !== FEUILLE_AIDE)
         .filter((f) => f.data.some((l) => l.some((c) => c !== null && c !== "")));
-      const choisie = feuille
-        ? feuilles.find((f) => f.sheet === feuille)
-        : remplies.length === 1
-          ? remplies[0]
-          : undefined;
-      if (feuille && !choisie) return { erreur: "Feuille introuvable dans ce classeur." };
-      if (!choisie) {
-        return remplies.length === 0
-          ? { erreur: "Le classeur est vide." }
-          : {
-              erreur: "Ce classeur contient plusieurs feuilles : choisissez celle à importer.",
-              feuilles: remplies.map((f) => f.sheet),
-            };
+      if (choisies?.length) {
+        const trouvees = choisies.map((nomFeuille) => feuilles.find((f) => f.sheet === nomFeuille));
+        if (trouvees.some((f) => !f)) return { erreur: "Feuille introuvable dans ce classeur." };
+        return { tableaux: trouvees.map((f) => ({ feuille: f!.sheet, tableau: f!.data })) };
       }
-      return { tableau: choisie.data };
+      if (remplies.length === 1) return { tableaux: [{ feuille: null, tableau: remplies[0].data }] };
+      return remplies.length === 0
+        ? { erreur: "Le classeur est vide." }
+        : {
+            erreur: "Ce classeur contient plusieurs feuilles : cochez celles à importer.",
+            feuilles: remplies.map((f) => f.sheet),
+          };
     } catch {
       return { erreur: "Classeur Excel illisible. Enregistrez-le à nouveau au format .xlsx." };
     }
@@ -59,7 +57,7 @@ export async function lireFichier(nom: string, contenu: Buffer, feuille?: string
     }
     const resultat = Papa.parse<string[]>(texte, { delimiter: "", skipEmptyLines: false });
     if (resultat.errors.some((e) => e.type === "Quotes")) return { erreur: "CSV mal formé (guillemets non fermés)." };
-    return { tableau: resultat.data };
+    return { tableaux: [{ feuille: null, tableau: resultat.data }] };
   }
 
   if (extension === "xls") {

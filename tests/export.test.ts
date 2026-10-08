@@ -12,7 +12,8 @@ describe("export Excel", () => {
         ["SSI", null, null],
       ],
     );
-    const { tableau, erreur } = await lireFichier("export.xlsx", contenu);
+    const { tableaux, erreur } = await lireFichier("export.xlsx", contenu);
+    const tableau = tableaux?.[0].tableau;
     expect(erreur).toBeUndefined();
     expect(tableau![0]).toEqual(["Contrôle", "Échéance", "Mois"]);
     expect(tableau![1][0]).toBe('=HYPERLINK("x")');

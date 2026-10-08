@@ -253,7 +253,8 @@ describe("fichiers", () => {
         { value: new Date(Date.UTC(2020, 1, 1)), type: Date, format: "dd/mm/yyyy" },
       ],
     ]).toBuffer();
-    const { tableau } = await lireFichier("parc.xlsx", fichier);
+    const { tableaux } = await lireFichier("parc.xlsx", fichier);
+    const tableau = tableaux?.[0].tableau;
     const lu = lireTableau(tableau!, "equipements");
     expect(planifierEquipements(lu.lignes!, VIDE).operations.equipements[0]).toMatchObject({
       code: "A1",
@@ -263,7 +264,8 @@ describe("fichiers", () => {
 
   it("lit un CSV Excel (point-virgule, BOM UTF-8)", async () => {
     const csv = "﻿Code;Libellé;Bâtiment\nA1;Armoire « principale »;Bât A\n";
-    const { tableau } = await lireFichier("parc.csv", Buffer.from(csv, "utf8"));
+    const { tableaux } = await lireFichier("parc.csv", Buffer.from(csv, "utf8"));
+    const tableau = tableaux?.[0].tableau;
     expect(tableau![1]).toEqual(["A1", "Armoire « principale »", "Bât A"]);
   });
 
@@ -276,7 +278,8 @@ describe("fichiers", () => {
 
   it("le modèle généré est relisible et reconnu", async () => {
     for (const type of ["controles", "equipements"] as const) {
-      const { tableau } = await lireFichier("modele.xlsx", await genererModele(type));
+      const { tableaux } = await lireFichier("modele.xlsx", await genererModele(type));
+      const tableau = tableaux?.[0].tableau;
       expect(tableau![0].length).toBeGreaterThan(5);
       expect(lireTableau([...tableau!, ["x", "y"]], type).erreur).toBeUndefined();
     }
