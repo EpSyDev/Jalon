@@ -25,15 +25,14 @@
 > déplacements groupés, PWA/hors ligne, 2FA pour tous, tests Playwright automatisés, format .xls (non pris en charge,
 > demande une dépendance : à décider).
 >
-> **Prochain chantier (décidé avec Nico le 08/10/2026) : lecture de fichiers au maximum.** Attendre que Nico fournisse
-> des fichiers réels, anonymisés et sans donnée patient : l'Excel des fauteuils roulants, celui du matériel
-> biomédical, et un rapport de contrôle réglementaire Veritas en PDF (page de garde avec le nombre de réserves, puis
-> le détail). Ne rien deviner sans eux.
-> 1. **Import Excel** : reprendre automatiquement toutes les colonnes non reconnues dans les notes (aujourd'hui 3
->    « informations complémentaires » au maximum) ; gérer les en-têtes sur plusieurs lignes et les cellules fusionnées ;
->    ignorer les lignes de total ; mémoriser l'association des colonnes pour un fichier du même modèle ; régler le
->    repérage des colonnes sur les vrais fichiers. Code : `src/lib/metier/import.ts` (règles pures, testées),
->    `src/lib/import/fichier.ts` (lecture), `src/app/(app)/import/` (écrans).
+> **Chantier « lecture de fichiers » (décidé avec Nico le 08/10/2026).** Fichiers réels reçus le 08/10 (non commités,
+> données d'établissement) : relevé MP des fauteuils (xlsx, 4 feuilles, la bonne est « SAV MP UGECAM 2026 2027
+> OFFCIEL »), suivi biomédical (12 feuilles), rapport MP en PDF (généré depuis l'Excel : inutile à lire), un rapport
+> Veritas (presse à balles, **sans réserve**). Ne rien deviner au-delà.
+> 1. **Import Excel : fait (commit `79b60b9`)**, vérifié sur les vrais fichiers et dans le navigateur (162 fauteuils
+>    importés en local, réimport sans doublon, association reprise). Fauteuils : 6 lignes dépassent 2 000 caractères de
+>    notes tant que les colonnes « RAPPORT MP 2020 » ne sont pas décochées. Reste ouvert : l'historique MP mériterait
+>    d'être importé en relevés/contrôles plutôt qu'en notes.
 > 2. **Import de rapport PDF** : écran de pré-remplissage (jamais d'enregistrement automatique) : l'utilisateur dépose
 >    le PDF, Jalon retrouve le plan de contrôle et propose date, résultat, nombre de réserves (page de garde) et liste
 >    détaillée (description, gravité, échéance de levée si elles sont écrites), signale tout écart (« page de garde : 7,
@@ -41,8 +40,11 @@
 >    `reference_rapport`. Ne pas stocker le PDF (pas d'upload sans feu vert DSI). Démarrer par une extraction à règles
 >    dans l'application (texte du PDF, sans service externe) sur les rapports Veritas ; un PDF scanné demande un OCR.
 >    Une lecture par IA (API Claude) lirait toutes les mises en page mais fait sortir le contenu vers un service
->    externe : seulement avec l'accord de la DSI, hébergement UE vérifié, aucune donnée patient. Dire honnêtement à
->    Nico si les règles tiennent sans IA.
+>    externe : seulement avec l'accord de la DSI, hébergement UE vérifié, aucune donnée patient. **Constat sur le
+>    rapport reçu** : PDF texte (pas un scan), les règles tiennent pour date d'intervention, référence, nombre de
+>    fiches, et par fiche marque / type / n° de série / localisation / avis général. Le format des réserves reste
+>    inconnu : attendre un rapport Veritas **avec réserves** avant de coder. Extraction : dépendance à ajouter
+>    (pdfjs-dist ou unpdf), à valider avec Nico.
 >
 > **Pièges de cette session** : les heredocs shell avec apostrophes échouent (utiliser Write/Edit ou un script .cjs
 > dans le scratchpad) ; après chaque nouvelle route `npx next typegen` ; `git add` ciblé (jamais `-A` à la racine).
