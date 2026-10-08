@@ -13,7 +13,7 @@ afterAll(async () => {
   await p?.fermer();
 });
 
-const ENTETE_EQUIPEMENTS = ["Code", "Libellé", "Univers", "Famille", "Bâtiment", "Niveau", "Local"];
+const ENTETE_EQUIPEMENTS = ["Code", "Libellé", "Univers", "Famille", "Bâtiment", "Niveau", "Local", "N° inventaire"];
 
 describe("import réel (pilote postgres, RLS technicien)", () => {
   it("équipements par lots : univers et localisations créés une fois, rattachements corrects", async () => {
@@ -27,6 +27,7 @@ describe("import réel (pilote postgres, RLS technicien)", () => {
         "Bât. Z",
         "R+1",
         null,
+        `INV-${i}`,
       ]);
     }
     const r = await enTantQueUtilisateur(p.sql, "technicien", async (tx) => {
@@ -41,8 +42,11 @@ describe("import réel (pilote postgres, RLS technicien)", () => {
       const [chauffage] = await tx<{ n: number }[]>`
         select count(*)::int as n from public.equipements e join public.univers u on u.id = e.univers_id
         where u.libelle = 'Chauffage-ventilation' and e.code like 'IMP-%'`;
-      return { bilan, compte, chauffage };
+      const [notes] = await tx<{ notes: string }[]>`select notes from public.equipements where code = 'IMP-7'`;
+      return { bilan, compte, chauffage, notes };
     });
+    // Les colonnes en plus arrivent bien en base (elles étaient calculées mais jamais enregistrées).
+    expect(r.notes.notes).toBe("N° inventaire : INV-7");
     expect(r.bilan).toMatchObject({ equipements: 1200, univers: 2, localisations: 1 });
     expect(r.compte).toEqual({ n: 1200, univers: 2, locs: 1 });
     expect(r.chauffage.n).toBe(600);

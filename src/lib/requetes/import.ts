@@ -158,6 +158,7 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
           numero_serie: e.numero_serie,
           date_mise_en_service: e.date_mise_en_service,
           statut: e.statut,
+          notes: e.notes,
         })),
       )}`,
   );
