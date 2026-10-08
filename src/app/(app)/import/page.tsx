@@ -1,4 +1,5 @@
-import { Download } from "lucide-react";
+import Link from "next/link";
+import { Download, FileText } from "lucide-react";
 import { requete } from "@/lib/auth";
 import { listerUnivers } from "@/lib/requetes/parc";
 import { FormulaireImport } from "./formulaire-import";
@@ -29,6 +30,10 @@ export default async function PageImport() {
           <Download className="size-4" aria-hidden />
           Modèle « Équipements »
         </a>
+        <Link href="/import/rapport" className="inline-flex items-center gap-2 underline">
+          <FileText className="size-4" aria-hidden />
+          Lire un rapport de contrôle (PDF)
+        </Link>
       </div>
       <FormulaireImport univers={univers.map((u) => ({ id: u.id, libelle: u.libelle }))} />
     </div>
