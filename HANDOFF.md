@@ -29,22 +29,19 @@
 > données d'établissement) : relevé MP des fauteuils (xlsx, 4 feuilles, la bonne est « SAV MP UGECAM 2026 2027
 > OFFCIEL »), suivi biomédical (12 feuilles), rapport MP en PDF (généré depuis l'Excel : inutile à lire), un rapport
 > Veritas (presse à balles, **sans réserve**). Ne rien deviner au-delà.
-> 1. **Import Excel : fait (commit `79b60b9`)**, vérifié sur les vrais fichiers et dans le navigateur (162 fauteuils
->    importés en local, réimport sans doublon, association reprise). Fauteuils : 6 lignes dépassent 2 000 caractères de
->    notes tant que les colonnes « RAPPORT MP 2020 » ne sont pas décochées. Reste ouvert : l'historique MP mériterait
->    d'être importé en relevés/contrôles plutôt qu'en notes.
-> 2. **Import de rapport PDF** : écran de pré-remplissage (jamais d'enregistrement automatique) : l'utilisateur dépose
->    le PDF, Jalon retrouve le plan de contrôle et propose date, résultat, nombre de réserves (page de garde) et liste
->    détaillée (description, gravité, échéance de levée si elles sont écrites), signale tout écart (« page de garde : 7,
->    détail : 6 »), l'utilisateur corrige puis valide ; création du contrôle et des réserves, nom du fichier en
->    `reference_rapport`. Ne pas stocker le PDF (pas d'upload sans feu vert DSI). Démarrer par une extraction à règles
->    dans l'application (texte du PDF, sans service externe) sur les rapports Veritas ; un PDF scanné demande un OCR.
->    Une lecture par IA (API Claude) lirait toutes les mises en page mais fait sortir le contenu vers un service
->    externe : seulement avec l'accord de la DSI, hébergement UE vérifié, aucune donnée patient. **Constat sur le
->    rapport reçu** : PDF texte (pas un scan), les règles tiennent pour date d'intervention, référence, nombre de
->    fiches, et par fiche marque / type / n° de série / localisation / avis général. Le format des réserves reste
->    inconnu : attendre un rapport Veritas **avec réserves** avant de coder. Extraction : dépendance à ajouter
->    (pdfjs-dist ou unpdf), à valider avec Nico.
+> 1. **Import Excel : fait** (`79b60b9`, `27e40ff`, `4043f56`, `57bba13`), vérifié sur les vrais fichiers et dans le
+>    navigateur. Plusieurs feuilles cochées en une fois (association par feuille, mémorisée dans le navigateur).
+>    Option « Maintenances du fichier » : dates de maintenance → contrôles sur un plan par équipement (vigilance vide/RAS
+>    = conforme, sinon avec réserves ; réserves ouvertes pour la seule maintenance la plus récente ; sans colonne de
+>    vigilance, conforme seulement si l'utilisateur coche la confirmation). Fauteuils : 162 équipements, 122 plans,
+>    450 maintenances, 175 réserves ouvertes. Biomédical (7 feuilles) : ~500 équipements, 250 plans. Noms précédés d'un
+>    titre (Dr, M., Mme, IPA…) réduits à l'initiale (`src/lib/metier/noms.ts`). **Correctif** : les notes des
+>    équipements importés n'étaient jamais enregistrées en base (avant `27e40ff`).
+> 2. **Lecture de rapport PDF : faite** (`e588204`), `/import/rapport`. `unpdf` 1.8.1 (pdf.js sans eval), texte en
+>    mémoire, rien stocké ni envoyé dehors ; scan refusé. Règles Veritas (`src/lib/metier/rapport-pdf.ts`) vérifiées sur
+>    le vrai rapport : date, référence, fiches, marque/type/série/localisation/avis ; équipement retrouvé par n° de
+>    série, plan présélectionné. **Reste** : lecture des réserves détaillées, dès que Nico fournit un rapport Veritas
+>    avec réserves (aujourd'hui saisies à la main ; annoncées non détaillées → « à détailler »).
 >
 > **Pièges de cette session** : les heredocs shell avec apostrophes échouent (utiliser Write/Edit ou un script .cjs
 > dans le scratchpad) ; après chaque nouvelle route `npx next typegen` ; `git add` ciblé (jamais `-A` à la racine).
