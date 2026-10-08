@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight, ClipboardPlus, Download, Plus, Route } from "lucide-react";
+import { ChevronRight, ClipboardPlus, Download, ListChecks, Plus, Route } from "lucide-react";
 import { BadgeReserves, BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
 import { buttonVariants } from "@/components/ui/button";
@@ -54,6 +54,10 @@ export default async function PageControles({ searchParams }: PageProps<"/contro
         <LienBouton href="/controles/tournee" variante="outline">
           <Route className="size-4" aria-hidden />
           Tournée
+        </LienBouton>
+        <LienBouton href="/controles/reserves" variante="outline">
+          <ListChecks className="size-4" aria-hidden />
+          Réserves ouvertes
         </LienBouton>
         <a href="/controles/export" className={buttonVariants({ variant: "outline" })}>
           <Download className="size-4" aria-hidden />

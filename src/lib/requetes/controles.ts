@@ -114,6 +114,32 @@ export function reservesDuPlan(tx: Tx, planId: string) {
     order by (r.statut = 'levee'), r.echeance_levee nulls last, r.date_constat desc`;
 }
 
+export type ReserveListe = {
+  id: string;
+  description: string;
+  gravite: Reserve["gravite"];
+  date_constat: string;
+  echeance_levee: string | null;
+  plan_controle_id: string;
+  type_libelle: string;
+  perimetre: string;
+};
+
+/** Toutes les réserves ouvertes, pour la levée groupée (ex. vigilances d'une campagne de maintenance). */
+export function reservesOuvertes(tx: Tx) {
+  return tx<ReserveListe[]>`
+    select r.id, r.description, r.gravite, r.date_constat::text, r.echeance_levee::text, p.id as plan_controle_id,
+      t.libelle as type_libelle,
+      coalesce(e.code || ' — ' || e.libelle, p.perimetre_libelle, '') as perimetre
+    from public.reserves r
+    join public.controles c on c.id = r.controle_id and c.archive_le is null
+    join public.plans_controle p on p.id = c.plan_controle_id and p.archive_le is null
+    join public.types_controle t on t.id = p.type_controle_id
+    left join public.equipements e on e.id = p.equipement_id
+    where r.statut = 'ouverte' and r.archive_le is null
+    order by t.libelle, e.code nulls last, r.date_constat, r.description`;
+}
+
 export async function lireReserve(tx: Tx, id: string) {
   const [reserve] = await tx<(Reserve & { plan_controle_id: string; type_libelle: string })[]>`
     select r.id, r.controle_id, r.description, r.gravite, r.date_constat, r.echeance_levee, r.date_levee,

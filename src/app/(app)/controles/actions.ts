@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import type { z } from "zod";
+import { z } from "zod";
+import { dateIso } from "@/lib/metier/saisie";
 import {
   ADMIN,
   executer,
@@ -225,6 +226,44 @@ export async function leverReserve(id: string, planId: string, formData: FormDat
   if (echec) return { erreur: echec };
   rafraichir();
   redirect(`/controles/plans/${planId}`);
+}
+
+const schemaLeveeGroupee = z.object({
+  ids: z.array(z.uuid()).min(1, "aucune réserve cochée").max(2000),
+  date_levee: dateIso.refine((d) => d <= aujourdhuiParis(), "date de levée dans le futur"),
+  commentaire: z.string().trim().max(500, "commentaire : 500 caractères maximum"),
+});
+
+/**
+ * Lève plusieurs réserves d'un coup (ex. vigilances d'une campagne de maintenance traitées). Tout ou rien : une date de
+ * levée antérieure au constat d'une seule réserve refuse l'ensemble, avec le nombre de réserves en cause.
+ */
+export async function leverReserves(saisie: z.input<typeof schemaLeveeGroupee>): Promise<Resultat> {
+  const lu = schemaLeveeGroupee.safeParse(saisie);
+  if (!lu.success) return { erreur: lu.error.issues[0].message };
+  const { ids, date_levee, commentaire } = lu.data;
+  let levees = 0;
+  const echec = await executer(async (tx) => {
+    const [{ avant }] = await tx<{ avant: number }[]>`
+      select count(*)::int as avant from public.reserves
+      where id = any(${ids}::uuid[]) and statut = 'ouverte' and date_constat > ${date_levee}::date`;
+    if (avant > 0) {
+      throw new RefusMetier(
+        `${avant} réserve(s) cochée(s) ont été constatées après le ${date_levee.split("-").reverse().join("/")} : choisissez une date de levée plus récente.`,
+      );
+    }
+    const note = commentaire ? `Levée groupée : ${commentaire}` : null;
+    const r = await tx`
+      update public.reserves set statut = 'levee', date_levee = ${date_levee},
+        commentaire = case when ${note}::text is null then commentaire
+          else left(coalesce(commentaire || E'\n', '') || ${note}::text, 2000) end
+      where id = any(${ids}::uuid[]) and statut = 'ouverte' and archive_le is null`;
+    levees = r.count;
+  });
+  if (echec) return { erreur: echec };
+  rafraichir();
+  revalidatePath("/controles/reserves");
+  return { message: `${levees} réserve${levees > 1 ? "s" : ""} levée${levees > 1 ? "s" : ""}.` };
 }
 
 export async function rouvrirReserve(id: string, planId: string): Promise<Resultat> {
