@@ -71,7 +71,15 @@ function Recherche({ filtres, placeholder }: { filtres: Partial<FiltresAdresse>;
   );
 }
 
-function Actions({ peutEcrire, nouveau }: { peutEcrire: boolean; nouveau: string }) {
+function Actions({
+  peutEcrire,
+  nouveau,
+  etiquettes = "/equipements/etiquettes",
+}: {
+  peutEcrire: boolean;
+  nouveau: string;
+  etiquettes?: string;
+}) {
   return (
     <div className="flex flex-wrap gap-2">
       <LienBouton href="/equipements/univers" variante="outline">
@@ -82,7 +90,7 @@ function Actions({ peutEcrire, nouveau }: { peutEcrire: boolean; nouveau: string
         <MapPin className="size-4" aria-hidden />
         Localisations
       </LienBouton>
-      <LienBouton href="/equipements/etiquettes" variante="outline">
+      <LienBouton href={etiquettes} variante="outline">
         <QrCode className="size-4" aria-hidden />
         Étiquettes QR
       </LienBouton>
@@ -312,6 +320,13 @@ async function Liste({ filtres }: { filtres: FiltresAdresse }) {
       ? `?univers=${universCourant.id}${criteres.categorie && criteres.categorie !== AUCUN ? `&categorie=${criteres.categorie}` : ""}`
       : ""
   }`;
+  // Étiquettes du périmètre affiché (univers, catégorie).
+  const etiquettes = `/equipements/etiquettes${(() => {
+    const q = new URLSearchParams();
+    if (criteres.univers && criteres.univers !== TOUS) q.set("univers", criteres.univers);
+    if (criteres.univers && criteres.univers !== TOUS && criteres.categorie) q.set("categorie", criteres.categorie);
+    return q.size ? `?${q}` : "";
+  })()}`;
   // Sélection groupée : catégories de l'univers affiché seulement (transversales pour « Sans univers »).
   const categoriesSelection = universCourant
     ? options.categories.filter((c) => c.univers_id === universCourant.id)
@@ -331,7 +346,7 @@ async function Liste({ filtres }: { filtres: FiltresAdresse }) {
         </nav>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold">{titre}</h1>
-          <Actions peutEcrire={peutEcrire} nouveau={nouveau} />
+          <Actions peutEcrire={peutEcrire} nouveau={nouveau} etiquettes={etiquettes} />
         </div>
       </div>
 

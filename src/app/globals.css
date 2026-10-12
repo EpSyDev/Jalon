@@ -228,3 +228,14 @@
     transform: translateY(6px);
   }
 }
+
+/* Planche d'étiquettes QR : feuille A4, marges courtes pour loger un maximum d'étiquettes. */
+@page planche {
+  size: A4;
+  margin: 8mm;
+}
+@media print {
+  .planche-a4 {
+    page: planche;
+  }
+}

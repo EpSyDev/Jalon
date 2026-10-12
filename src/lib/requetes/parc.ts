@@ -319,13 +319,42 @@ export async function modifierEnMasse(
   return lignes.length;
 }
 
-/** Équipements à étiqueter (QR), filtrés par identifiants ou tous ceux du parc. */
-export function equipementsAEtiqueter(tx: Tx, ids: string[] | null) {
-  return tx<{ id: string; code: string; libelle: string; localisation: string | null; qr_token: string }[]>`
-    select e.id, e.code, e.libelle, l.libelle_complet as localisation, e.qr_token
+export type Etiquette = {
+  id: string;
+  code: string;
+  libelle: string;
+  localisation: string | null;
+  qr_token: string;
+  univers: string | null;
+  categorie: string | null;
+};
+
+/**
+ * Équipements à étiqueter (QR), hors matériel retiré du parc : par identifiants, par univers (AUCUN : sans univers)
+ * et catégorie, ou tout le parc. Rangés par univers, catégorie puis code.
+ */
+export function equipementsAEtiqueter(
+  tx: Tx,
+  filtre: { ids?: string[] | null; univers?: string; categorie?: string } = {},
+) {
+  const ids = filtre.ids?.length ? filtre.ids : null;
+  const sansUnivers = filtre.univers === "aucun";
+  const univers = filtre.univers && !sansUnivers && filtre.univers !== "tous" ? filtre.univers : null;
+  const sansCategorie = filtre.categorie === "aucun";
+  const categorie = filtre.categorie && !sansCategorie ? filtre.categorie : null;
+  return tx<Etiquette[]>`
+    select e.id, e.code, e.libelle, l.libelle_complet as localisation, e.qr_token, u.libelle as univers,
+      c.libelle as categorie
     from public.equipements e
     left join public.localisations l on l.id = e.localisation_id
+    left join public.univers u on u.id = e.univers_id
+    left join public.categories_equipement c on c.id = e.categorie_id
     where e.archive_le is null and e.statut <> all(${RETIRES}::text[])
       and (${ids}::uuid[] is null or e.id = any(${ids}::uuid[]))
-    order by e.code`;
+      and (${univers}::uuid is null or e.univers_id = ${univers})
+      and (not ${sansUnivers} or e.univers_id is null)
+      and (${categorie}::uuid is null or e.categorie_id = ${categorie})
+      and (not ${sansCategorie} or e.categorie_id is null)
+    order by u.libelle nulls last, public.normaliser(c.libelle) nulls last,
+      upper(substring(e.code from '^[^0-9]*')), nullif(substring(e.code from '[0-9]+'), '')::numeric nulls first, e.code`;
 }

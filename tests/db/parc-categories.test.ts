@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
-import { categorieParNom, listerEquipements, syntheseParUnivers } from "@/lib/requetes/parc";
+import { categorieParNom, equipementsAEtiqueter, listerEquipements, syntheseParUnivers } from "@/lib/requetes/parc";
 import { demarrerPilote, enTantQueUtilisateur, type Pilote } from "./pilote";
 
 let p: Pilote;
@@ -103,6 +103,26 @@ describe("catégories de matériel (pilote postgres)", () => {
         (tx) => tx`insert into public.categories_equipement (libelle) values ('X')`,
       ),
     ).rejects.toThrow(/row-level security/);
+  });
+});
+
+describe("étiquettes QR (pilote postgres)", () => {
+  it("périmètre par univers ou catégorie, matériel retiré exclu, rangé par catégorie puis code", async () => {
+    const r = await enTantQueUtilisateur(p.sql, "lecture", async (tx) => {
+      const tech = await idUnivers(tx, "Technique bâtiment");
+      const [chaufferie] = await tx<{ id: string }[]>`
+        select id from public.categories_equipement where libelle = 'Chaufferie'`;
+      return {
+        univers: await equipementsAEtiqueter(tx, { univers: tech }),
+        categorie: await equipementsAEtiqueter(tx, { univers: tech, categorie: chaufferie.id }),
+        tout: await equipementsAEtiqueter(tx),
+      };
+    });
+    // ANC-01 (réformé) n'est jamais étiqueté.
+    expect(r.univers.map((e) => e.code)).toEqual(["ASC-B1", "CHAUD-B", "ECL-SEC-A1", "TGBT-A"]);
+    expect(r.categorie.map((e) => e.code)).toEqual(["CHAUD-B"]);
+    expect(r.tout.map((e) => e.code)).not.toContain("ANC-01");
+    expect(r.tout[0]).toMatchObject({ univers: "Biomédical", qr_token: expect.stringMatching(/^[0-9a-f]{32}$/) });
   });
 });
 
