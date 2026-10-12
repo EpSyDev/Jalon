@@ -1,17 +1,31 @@
 import "server-only";
 import type { Tx } from "@/lib/db";
 import type { StatutEcheance } from "@/lib/metier/echeance";
-import { statutLePlusUrgent } from "@/lib/metier/parc";
+import {
+  filtrerEtCompter,
+  STATUTS_INDISPONIBLES,
+  STATUTS_RETIRES,
+  statutLePlusUrgent,
+  type Facettes,
+  type FiltresListe,
+  type LigneFiltrable,
+  type StatutEquipement,
+} from "@/lib/metier/parc";
 
-export type StatutEquipement = "en_service" | "hors_service" | "reforme";
+export type { StatutEquipement };
+
+const INDISPONIBLES = [...STATUTS_INDISPONIBLES];
+const RETIRES = [...STATUTS_RETIRES];
 
 export type EquipementListe = {
   id: string;
   code: string;
   libelle: string;
   statut: StatutEquipement;
-  famille: string | null;
+  statut_depuis: string | null;
+  statut_retour_prevu: string | null;
   univers: string | null;
+  categorie: string | null;
   localisation: string | null;
   statuts_plans: StatutEcheance[];
   synthese: StatutEcheance | null;
@@ -19,39 +33,109 @@ export type EquipementListe = {
 
 export const PAR_PAGE = 100;
 
+export type FiltresParc = FiltresListe & {
+  q?: string;
+  /** Identifiant d'univers, AUCUN (sans univers), « tous » ou absent (tout le parc). */
+  univers?: string;
+};
+
+/**
+ * Liste du parc : la recherche et l'univers délimitent le périmètre (SQL), puis les filtres de catégorie, de
+ * localisation et de statut s'appliquent en mémoire avec leurs comptes (une seule règle, testée, pour les deux).
+ */
 export async function listerEquipements(
   tx: Tx,
-  filtres: { q?: string; statut?: string; famille?: string; univers?: string; localisation?: string },
+  filtres: FiltresParc,
   /** null : toute la liste (export). */
   page: number | null = 1,
-): Promise<{ equipements: EquipementListe[]; total: number }> {
+): Promise<{ equipements: EquipementListe[]; total: number; facettes: Facettes }> {
   const q = filtres.q?.trim() ? `%${filtres.q.trim()}%` : null;
-  const lignes = await tx<(Omit<EquipementListe, "synthese"> & { total: number })[]>`
-    select e.id, e.code, e.libelle, e.statut, f.libelle as famille, u.libelle as univers, l.libelle_complet as localisation,
-      coalesce(array_agg(v.statut_echeance) filter (where v.statut_echeance is not null), '{}') as statuts_plans,
-      (count(*) over ())::int as total
+  const sansUnivers = filtres.univers === "aucun";
+  const univers = filtres.univers && !sansUnivers && filtres.univers !== "tous" ? filtres.univers : null;
+  const perimetre = await tx<LigneFiltrable[]>`
+    select e.id, e.statut, e.categorie_id, e.localisation_id
     from public.equipements e
-    left join public.familles_controle f on f.id = e.famille_id
+    left join public.localisations l on l.id = e.localisation_id
+    left join public.categories_equipement c on c.id = e.categorie_id
+    where e.archive_le is null
+      and (${univers}::uuid is null or e.univers_id = ${univers})
+      and (not ${sansUnivers} or e.univers_id is null)
+      and (${q}::text is null or public.normaliser(concat_ws(' ', e.code, e.libelle, e.marque, e.modele, e.numero_serie,
+        l.libelle_complet, c.libelle, e.notes)) like public.normaliser(${q}))
+    order by upper(substring(e.code from '^[^0-9]*')), nullif(substring(e.code from '[0-9]+'), '')::numeric nulls first,
+      e.code`;
+  const facettes = filtrerEtCompter(perimetre, filtres);
+  const ids =
+    page === null ? facettes.ids : facettes.ids.slice((Math.max(page, 1) - 1) * PAR_PAGE, Math.max(page, 1) * PAR_PAGE);
+  return { equipements: await detailsListe(tx, ids), total: facettes.ids.length, facettes };
+}
+
+/** Lignes de la liste pour ces équipements, dans l'ordre donné. */
+async function detailsListe(tx: Tx, ids: string[]): Promise<EquipementListe[]> {
+  if (ids.length === 0) return [];
+  const lignes = await tx<Omit<EquipementListe, "synthese">[]>`
+    select e.id, e.code, e.libelle, e.statut, e.statut_depuis, e.statut_retour_prevu, u.libelle as univers,
+      c.libelle as categorie, l.libelle_complet as localisation,
+      coalesce(array_agg(v.statut_echeance) filter (where v.statut_echeance is not null), '{}') as statuts_plans
+    from public.equipements e
     left join public.univers u on u.id = e.univers_id
+    left join public.categories_equipement c on c.id = e.categorie_id
     left join public.localisations l on l.id = e.localisation_id
     left join public.v_plans_controle_echeance v on v.equipement_id = e.id
+    where e.id = any(${ids}::uuid[])
+    group by e.id, u.libelle, c.libelle, l.libelle_complet`;
+  const parId = new Map(lignes.map((e) => [e.id, { ...e, synthese: statutLePlusUrgent(e.statuts_plans) }]));
+  return ids.flatMap((id) => parId.get(id) ?? []);
+}
+
+export type SyntheseUnivers = {
+  univers_id: string | null;
+  en_parc: number;
+  indisponibles: number;
+  retires: number;
+  en_retard: number;
+};
+
+/** Par univers (null = sans univers) : matériel en parc, indisponible, retiré, et en retard de contrôle. */
+export function syntheseParUnivers(tx: Tx) {
+  return tx<SyntheseUnivers[]>`
+    select e.univers_id,
+      count(*) filter (where e.statut <> all(${RETIRES}::text[]))::int as en_parc,
+      count(*) filter (where e.statut = any(${INDISPONIBLES}::text[]))::int as indisponibles,
+      count(*) filter (where e.statut = any(${RETIRES}::text[]))::int as retires,
+      count(*) filter (where r.en_retard)::int as en_retard
+    from public.equipements e
+    left join (
+      select equipement_id, bool_or(statut_echeance = 'en_retard') as en_retard
+      from public.v_plans_controle_echeance where equipement_id is not null group by equipement_id
+    ) r on r.equipement_id = e.id
     where e.archive_le is null
-      and (${filtres.statut ?? null}::text is null or e.statut = ${filtres.statut ?? null})
-      and (${filtres.famille ?? null}::uuid is null or e.famille_id = ${filtres.famille ?? null})
-      and (${filtres.localisation ?? null}::uuid is null or e.localisation_id = ${filtres.localisation ?? null})
-      and (${filtres.univers === "aucun" ? "aucun" : null}::text is null or e.univers_id is null)
-      and (${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null}::uuid is null
-        or e.univers_id = ${filtres.univers && filtres.univers !== "aucun" ? filtres.univers : null})
-      and (${q}::text is null or public.normaliser(e.code || ' ' || e.libelle || ' ' || coalesce(l.libelle_complet, ''))
-        like public.normaliser(${q}))
-    group by e.id, f.libelle, u.libelle, l.libelle_complet
-    order by e.code
-    limit ${page === null ? null : PAR_PAGE} offset ${page === null ? 0 : (Math.max(page, 1) - 1) * PAR_PAGE}`;
-  return {
-    // « total » (fenêtre SQL) reste sur l'objet : sans effet sur l'affichage.
-    equipements: lignes.map((e) => ({ ...e, synthese: statutLePlusUrgent(e.statuts_plans) })),
-    total: lignes[0]?.total ?? 0,
-  };
+    group by e.univers_id`;
+}
+
+export type EquipementIndisponible = {
+  id: string;
+  code: string;
+  libelle: string;
+  statut: StatutEquipement;
+  statut_depuis: string | null;
+  statut_motif: string | null;
+  statut_retour_prevu: string | null;
+  prestataire: string | null;
+  univers: string | null;
+};
+
+/** Matériel indisponible en ce moment, retour le plus proche (ou dépassé) en premier. */
+export function materielIndisponible(tx: Tx) {
+  return tx<EquipementIndisponible[]>`
+    select e.id, e.code, e.libelle, e.statut, e.statut_depuis, e.statut_motif, e.statut_retour_prevu,
+      p.nom as prestataire, u.libelle as univers
+    from public.equipements e
+    left join public.prestataires p on p.id = e.statut_prestataire_id
+    left join public.univers u on u.id = e.univers_id
+    where e.archive_le is null and e.statut = any(${INDISPONIBLES}::text[])
+    order by e.statut_retour_prevu nulls last, e.statut_depuis nulls last, e.code
+    limit 100`;
 }
 
 export type EquipementDetail = {
@@ -60,8 +144,8 @@ export type EquipementDetail = {
   libelle: string;
   univers_id: string | null;
   univers: string | null;
-  famille_id: string | null;
-  famille: string | null;
+  categorie_id: string | null;
+  categorie: string | null;
   localisation_id: string | null;
   localisation: string | null;
   marque: string | null;
@@ -69,19 +153,27 @@ export type EquipementDetail = {
   numero_serie: string | null;
   date_mise_en_service: string | null;
   statut: StatutEquipement;
+  statut_depuis: string | null;
+  statut_motif: string | null;
+  statut_prestataire_id: string | null;
+  prestataire: string | null;
+  statut_retour_prevu: string | null;
   qr_token: string;
   notes: string | null;
+  updated_at: string;
 };
 
 export async function lireEquipement(tx: Tx, id: string): Promise<EquipementDetail | undefined> {
   const [e] = await tx<EquipementDetail[]>`
-    select e.id, e.code, e.libelle, e.univers_id, u.libelle as univers, e.famille_id, f.libelle as famille, e.localisation_id,
-      l.libelle_complet as localisation, e.marque, e.modele, e.numero_serie, e.date_mise_en_service, e.statut,
-      e.qr_token, e.notes
+    select e.id, e.code, e.libelle, e.univers_id, u.libelle as univers, e.categorie_id, c.libelle as categorie,
+      e.localisation_id, l.libelle_complet as localisation, e.marque, e.modele, e.numero_serie, e.date_mise_en_service,
+      e.statut, e.statut_depuis, e.statut_motif, e.statut_prestataire_id, p.nom as prestataire, e.statut_retour_prevu,
+      e.qr_token, e.notes, e.updated_at::text as updated_at
     from public.equipements e
-    left join public.familles_controle f on f.id = e.famille_id
     left join public.univers u on u.id = e.univers_id
+    left join public.categories_equipement c on c.id = e.categorie_id
     left join public.localisations l on l.id = e.localisation_id
+    left join public.prestataires p on p.id = e.statut_prestataire_id
     where e.id = ${id} and e.archive_le is null`;
   return e;
 }
@@ -150,25 +242,90 @@ export function listerUnivers(tx: Tx) {
     from public.univers u where u.archive_le is null order by u.libelle`;
 }
 
-export async function optionsEquipement(tx: Tx) {
-  const [univers, familles, localisations] = await Promise.all([
-    tx<{ id: string; libelle: string }[]>`
-      select id, libelle from public.univers where archive_le is null order by libelle`,
-    tx<{ id: string; libelle: string }[]>`
-      select id, libelle from public.familles_controle where archive_le is null order by libelle`,
-    tx<{ id: string; libelle: string }[]>`
-      select id, libelle_complet as libelle from public.localisations where archive_le is null order by 2`,
-  ]);
-  return { univers, familles, localisations };
+export type CategorieListe = { id: string; libelle: string; univers_id: string | null; nb_equipements: number };
+
+/** Catégories actives (null = transversale, sans univers), avec leur nombre d'équipements. */
+export function listerCategories(tx: Tx) {
+  return tx<CategorieListe[]>`
+    select c.id, c.libelle, c.univers_id,
+      (select count(*)::int from public.equipements e where e.categorie_id = c.id and e.archive_le is null)
+        as nb_equipements
+    from public.categories_equipement c where c.archive_le is null
+    order by public.normaliser(c.libelle)`;
 }
 
-/** Équipements à étiqueter (QR), filtrés par identifiants ou tous les actifs. */
+export type OptionsEquipement = {
+  univers: { id: string; libelle: string }[];
+  categories: { id: string; libelle: string; univers_id: string | null }[];
+  localisations: { id: string; libelle: string }[];
+  prestataires: { id: string; libelle: string }[];
+};
+
+export async function optionsEquipement(tx: Tx): Promise<OptionsEquipement> {
+  const [univers, categories, localisations, prestataires] = await Promise.all([
+    tx<{ id: string; libelle: string }[]>`
+      select id, libelle from public.univers where archive_le is null order by libelle`,
+    tx<{ id: string; libelle: string; univers_id: string | null }[]>`
+      select id, libelle, univers_id from public.categories_equipement where archive_le is null
+      order by public.normaliser(libelle)`,
+    tx<{ id: string; libelle: string }[]>`
+      select id, libelle_complet as libelle from public.localisations where archive_le is null order by 2`,
+    tx<{ id: string; libelle: string }[]>`
+      select id, nom as libelle from public.prestataires where archive_le is null order by nom`,
+  ]);
+  return { univers, categories, localisations, prestataires };
+}
+
+/**
+ * Catégorie désignée par son nom dans un univers : retrouvée (accents et casse ignorés) ou créée.
+ * Une catégorie transversale du même nom convient aussi.
+ */
+export async function categorieParNom(tx: Tx, libelle: string, universId: string | null): Promise<string> {
+  const [trouvee] = await tx<{ id: string }[]>`
+    select id from public.categories_equipement
+    where archive_le is null and public.normaliser(libelle) = public.normaliser(${libelle})
+      and (univers_id is null or univers_id is not distinct from ${universId}::uuid)
+    order by univers_id nulls last limit 1`;
+  if (trouvee) return trouvee.id;
+  const [creee] = await tx<{ id: string }[]>`
+    insert into public.categories_equipement (libelle, univers_id) values (${libelle}, ${universId}) returning id`;
+  return creee.id;
+}
+
+/**
+ * Modification groupée. Un changement de statut efface les précisions de l'ancien (motif, prestataire, retour) ;
+ * un changement d'univers sans catégorie choisie retire la catégorie propre à un autre univers.
+ */
+export async function modifierEnMasse(
+  tx: Tx,
+  ids: string[],
+  m: { univers_id?: string | null; categorie_id?: string | null; localisation_id?: string | null; statut?: string },
+): Promise<number> {
+  const champs: Record<string, unknown> = { ...m };
+  if (m.statut) Object.assign(champs, { statut_motif: null, statut_prestataire_id: null, statut_retour_prevu: null });
+  const retirerCategorie = m.univers_id !== undefined && m.categorie_id === undefined;
+  const lignes = await tx`
+    update public.equipements e set ${tx(champs)}
+      ${
+        retirerCategorie
+          ? tx`, categorie_id = case when exists (
+              select 1 from public.categories_equipement c
+              where c.id = e.categorie_id and c.univers_id is not null and c.univers_id is distinct from ${m.univers_id ?? null}::uuid
+            ) then null else e.categorie_id end`
+          : tx``
+      }
+    where e.id = any(${ids}::uuid[]) and e.archive_le is null
+    returning e.id`;
+  return lignes.length;
+}
+
+/** Équipements à étiqueter (QR), filtrés par identifiants ou tous ceux du parc. */
 export function equipementsAEtiqueter(tx: Tx, ids: string[] | null) {
   return tx<{ id: string; code: string; libelle: string; localisation: string | null; qr_token: string }[]>`
     select e.id, e.code, e.libelle, l.libelle_complet as localisation, e.qr_token
     from public.equipements e
     left join public.localisations l on l.id = e.localisation_id
-    where e.archive_le is null and e.statut <> 'reforme'
+    where e.archive_le is null and e.statut <> all(${RETIRES}::text[])
       and (${ids}::uuid[] is null or e.id = any(${ids}::uuid[]))
     order by e.code`;
 }

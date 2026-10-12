@@ -17,6 +17,7 @@ export const TABLES = [
   "contacts",
   "familles_controle",
   "univers",
+  "categories_equipement",
   "equipements",
   "points_releve",
   "releves",

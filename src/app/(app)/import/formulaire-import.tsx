@@ -259,9 +259,17 @@ export function FormulaireImport({ univers }: { univers: { id: string; libelle: 
               </span>
             </div>
             <label className="flex min-h-11 items-start gap-3 text-sm">
-              <input type="checkbox" name="titres_famille" className="mt-0.5 size-5 shrink-0" />
+              <input type="checkbox" name="titres_categorie" className="mt-0.5 size-5 shrink-0" />
               <span>
-                Les lignes d&apos;une seule cellule (ex. « AUTOTENSIOMETRE ») donnent la famille des lignes qui suivent.
+                Les lignes d&apos;une seule cellule (ex. « AUTOTENSIOMETRE ») donnent la catégorie des lignes qui
+                suivent.
+              </span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 text-sm">
+              <input type="checkbox" name="categorie_feuille" className="mt-0.5 size-5 shrink-0" />
+              <span>
+                Sans colonne « Catégorie » ni titre de section, la catégorie est le nom de la feuille (ex. « Lits », «
+                Défibrillateurs »).
               </span>
             </label>
           </fieldset>

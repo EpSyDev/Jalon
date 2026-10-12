@@ -6,6 +6,7 @@ type ErreurPostgres = { code?: string; message?: string };
 const MESSAGES_METIER = [
   "La date de réalisation ne peut pas être dans le futur.",
   "Seul un administrateur peut archiver ou désarchiver.",
+  "La catégorie choisie appartient à un autre univers.",
 ];
 
 export function messageErreurBase(e: unknown): string {

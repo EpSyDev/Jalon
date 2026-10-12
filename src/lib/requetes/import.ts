@@ -4,7 +4,7 @@ import type { Tx } from "@/lib/db";
 import type { Existant, OperationsControles, OperationsEquipements, Ref } from "@/lib/metier/import";
 
 export async function lireExistant(tx: Tx): Promise<Existant> {
-  const [familles, prestataires, types, equipements, plans, localisations, univers] = await Promise.all([
+  const [familles, prestataires, types, equipements, plans, localisations, univers, categories] = await Promise.all([
     tx<Existant["familles"]>`select id, libelle from public.familles_controle where archive_le is null`,
     tx<Existant["prestataires"]>`select id, nom from public.prestataires where archive_le is null`,
     tx<Existant["types"]>`
@@ -16,8 +16,10 @@ export async function lireExistant(tx: Tx): Promise<Existant> {
     tx<Existant["localisations"]>`
       select id, batiment, niveau, local from public.localisations where archive_le is null`,
     tx<Existant["univers"]>`select id, libelle from public.univers where archive_le is null`,
+    tx<Existant["categories"]>`
+      select id, libelle, univers_id from public.categories_equipement where archive_le is null`,
   ]);
-  return { familles, prestataires, types, equipements, plans, localisations, univers };
+  return { familles, prestataires, types, equipements, plans, localisations, univers, categories };
 }
 
 function resoudre(ref: Ref, crees: Map<string, string>): string {
@@ -134,6 +136,19 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
     (lot) => tx`insert into public.univers ${tx(lot.map((libelle) => ({ id: univers.get(libelle)!, libelle })))}`,
   );
 
+  const categories = nouveauxIds(ops.categories.map((c) => c.cle));
+  await parLots(
+    ops.categories,
+    (lot) =>
+      tx`insert into public.categories_equipement ${tx(
+        lot.map((c) => ({
+          id: categories.get(c.cle)!,
+          libelle: c.libelle,
+          univers_id: resoudreOuNull(c.univers, univers),
+        })),
+      )}`,
+  );
+
   const localisations = nouveauxIds(ops.localisations.map((l) => l.cle));
   await parLots(
     ops.localisations,
@@ -153,7 +168,7 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
           code: e.code,
           libelle: e.libelle,
           univers_id: resoudreOuNull(e.univers, univers),
-          famille_id: resoudreOuNull(e.famille, familles),
+          categorie_id: resoudreOuNull(e.categorie, categories),
           localisation_id: resoudreOuNull(e.localisation, localisations),
           marque: e.marque,
           modele: e.modele,
@@ -216,6 +231,7 @@ export async function executerEquipements(tx: Tx, ops: OperationsEquipements) {
   return {
     familles: ops.familles.length,
     univers: ops.univers.length,
+    categories: ops.categories.length,
     localisations: ops.localisations.length,
     equipements: ops.equipements.length,
     plans: plans.length,

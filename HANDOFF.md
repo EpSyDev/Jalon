@@ -1,5 +1,15 @@
 # Passation Jalon : état au 08/10/2026
 
+> **12/10/2026 : refonte du parc (commit local, poussé seulement après la migration).** Migration
+> `20261012000100_parc_categories_statuts.sql` **à appliquer par Nico** avant de pousser : catégories de matériel
+> (`categories_equipement`, rattachées à un univers ; sans univers = transversale « à ranger ») séparées des familles
+> de contrôle ; reprise automatique des familles portées par des équipements (familles sans type de contrôle
+> archivées) ; statuts indisponible / réparation interne / réparation externe / déclassé, avec début, motif,
+> prestataire et retour prévu. Parc : accueil par univers, filtres à facettes (seules les valeurs présentes, avec
+> leur nombre), recherche sur n° de série, marque, modèle, catégorie et notes. Fiche : statut et informations
+> modifiables sur place (une réparation peut ouvrir l'intervention de suivi). Import : la colonne « Famille » d'un
+> fichier d'équipements devient la catégorie ; option « catégorie = nom de la feuille ». 313 tests verts.
+
 > **Mise à jour du 08/10/2026 (lire d'abord, elle prime sur le reste).** Travail direct sur `main`, push automatique
 > autorisé par Nico. Les migrations SQL sont **appliquées par Nico** (SQL Editor de Supabase, fichier envoyé avec
 > SendUserFile) : ne jamais utiliser un jeton collé dans la conversation (refusé par le classificateur), ne pousser le

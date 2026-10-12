@@ -23,7 +23,7 @@ export async function verifications(tx: Tx, plansLus?: EntreeVerifications["plan
       order by c.objet`,
     tx<EntreeVerifications["equipementsSansPlan"]>`
       select e.id, e.code, e.libelle from public.equipements e
-      where e.archive_le is null and e.statut = 'en_service'
+      where e.archive_le is null and e.statut not in ('reforme', 'declasse')
         and not exists (
           select 1 from public.plans_controle p
           join public.types_controle t on t.id = p.type_controle_id and t.archive_le is null

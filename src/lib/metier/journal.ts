@@ -17,6 +17,7 @@ export type Changement = { champ: string; avant: string; apres: string };
 export const LIBELLES_TABLE: Record<string, string> = {
   equipements: "Équipement",
   univers: "Univers",
+  categories_equipement: "Catégorie de matériel",
   localisations: "Localisation",
   familles_controle: "Famille",
   types_controle: "Type de contrôle",
@@ -90,7 +91,12 @@ const LIBELLES_CHAMP: Record<string, string> = {
   organisation: "Organisation",
   fonction: "Fonction",
   univers_id: "Univers",
+  categorie_id: "Catégorie",
   famille_id: "Famille",
+  statut_depuis: "Statut depuis le",
+  statut_motif: "Motif du statut",
+  statut_prestataire_id: "Réparé par",
+  statut_retour_prevu: "Retour prévu",
   localisation_id: "Localisation",
   prestataire_id: "Prestataire",
   contrat_id: "Contrat",
@@ -117,7 +123,11 @@ const LIBELLES_CHAMP: Record<string, string> = {
 /** Valeurs codées (statuts, résultats, rôles…) : libellé affiché. */
 const VALEURS: Record<string, string> = {
   en_service: "En service",
+  indisponible: "Indisponible",
+  reparation_interne: "En réparation (interne)",
+  reparation_externe: "En réparation (externe)",
   hors_service: "Hors service",
+  declasse: "Déclassé",
   reforme: "Réformé",
   a_faire: "À faire",
   en_cours: "En cours",
@@ -266,6 +276,7 @@ export function lienEnregistrement(e: Pick<Entree, "table_cible" | "enregistreme
     case "mouvements_stock":
       return champ("article_id") && `/stocks/${champ("article_id")}`;
     case "univers":
+    case "categories_equipement":
       return "/equipements/univers";
     case "localisations":
       return "/equipements/localisations";

@@ -200,7 +200,7 @@ export async function optionsPlan(tx: Tx) {
       where t.archive_le is null order by 2`,
     tx<Option[]>`
       select id, code || ' — ' || libelle as libelle from public.equipements
-      where archive_le is null and statut <> 'reforme' order by code`,
+      where archive_le is null and statut not in ('reforme', 'declasse') order by code`,
     tx<Option[]>`select id, nom as libelle from public.prestataires where archive_le is null order by nom`,
     tx<Option[]>`
       select c.id, p.nom || ' — ' || c.objet as libelle

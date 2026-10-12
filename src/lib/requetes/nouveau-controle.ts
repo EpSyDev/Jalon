@@ -80,7 +80,7 @@ export async function optionsNouveauControle(tx: Tx) {
       select id, libelle from public.familles_controle where archive_le is null order by libelle`,
     tx<{ id: string; libelle: string }[]>`
       select id, code || ' — ' || libelle as libelle from public.equipements
-      where archive_le is null and statut <> 'reforme' order by code`,
+      where archive_le is null and statut not in ('reforme', 'declasse') order by code`,
     tx<{ id: string; libelle: string }[]>`
       select id, nom as libelle from public.prestataires where archive_le is null order by nom`,
   ]);

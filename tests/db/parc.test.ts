@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { schemaModificationGroupee } from "@/lib/metier/parc";
-import { listerEquipements, PAR_PAGE } from "@/lib/requetes/parc";
+import { listerEquipements, modifierEnMasse, PAR_PAGE } from "@/lib/requetes/parc";
 import { demarrerPilote, enTantQueUtilisateur, type Pilote } from "./pilote";
 
 let p: Pilote;
@@ -21,17 +21,16 @@ describe("parc (pilote postgres)", () => {
         (e) => e.id,
       );
       const { modifications } = schemaModificationGroupee.parse({ ids, univers_id: u.id, localisation_id: "aucun" });
-      const lignes = await tx`
-        update public.equipements set ${tx(modifications)} where id = any(${ids}::uuid[]) and archive_le is null
-        returning id`;
-      const apres = await tx<{ univers_id: string; localisation_id: string | null }[]>`
-        select univers_id, localisation_id from public.equipements where id = any(${ids}::uuid[])`;
-      return { n: lignes.length, apres, u: u.id };
+      const n = await modifierEnMasse(tx, ids, modifications);
+      const apres = await tx<{ univers_id: string; localisation_id: string | null; categorie_id: string | null }[]>`
+        select univers_id, localisation_id, categorie_id from public.equipements where id = any(${ids}::uuid[])`;
+      return { n, apres, u: u.id };
     });
     expect(r.n).toBe(2);
+    // Changer d'univers retire la catégorie propre à l'ancien univers.
     expect(r.apres).toEqual([
-      { univers_id: r.u, localisation_id: null },
-      { univers_id: r.u, localisation_id: null },
+      { univers_id: r.u, localisation_id: null, categorie_id: null },
+      { univers_id: r.u, localisation_id: null, categorie_id: null },
     ]);
   });
 

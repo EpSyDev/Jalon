@@ -18,6 +18,7 @@ it("import : les noms des cellules sont masqués avant d'entrer dans Jalon", () 
     plans: [],
     localisations: [],
     univers: [],
+    categories: [],
   });
   expect(p.operations.equipements[0].notes).toBe("Affecté à : Dr R.");
 });

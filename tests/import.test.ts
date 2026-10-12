@@ -20,6 +20,7 @@ const VIDE: Existant = {
   plans: [],
   localisations: [],
   univers: [],
+  categories: [],
 };
 
 const ENTETE_CONTROLES = [
@@ -184,13 +185,14 @@ describe("planification des équipements", () => {
   const planifier = (lignes: Cellule[][], existant: Existant = VIDE) =>
     planifierEquipements(lireTableau([ENTETE, ...lignes], "equipements").lignes!, existant);
 
-  it("crée localisations et familles une seule fois", () => {
+  it("crée localisations et catégories une seule fois ; aucune famille de contrôle", () => {
     const p = planifier([
       ["A1", "Armoire 1", "Électricité", "Bât A", "RDC", "TGBT", "", ""],
       ["A2", "Armoire 2", "electricite", "bât a", "rdc", "tgbt", "hors service", "01/02/2020"],
     ]);
     expect(p.importable).toBe(true);
-    expect(p.operations.familles).toHaveLength(1);
+    expect(p.operations.familles).toHaveLength(0);
+    expect(p.operations.categories).toHaveLength(1);
     expect(p.operations.localisations).toHaveLength(1);
     expect(p.operations.equipements.map((e) => e.statut)).toEqual(["en_service", "hors_service"]);
   });

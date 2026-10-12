@@ -58,6 +58,7 @@ export async function nommerLiens(tx: Tx, ids: string[]): Promise<Record<string,
   const lignes = await tx<{ id: string; nom: string }[]>`
     with cibles as (select unnest(${ids}::uuid[]) as id)
     select u.id::text, u.libelle as nom from public.univers u join cibles using (id)
+    union all select c.id::text, c.libelle from public.categories_equipement c join cibles using (id)
     union all select l.id::text, l.libelle_complet from public.localisations l join cibles using (id)
     union all select f.id::text, f.libelle from public.familles_controle f join cibles using (id)
     union all select p.id::text, p.nom from public.prestataires p join cibles using (id)

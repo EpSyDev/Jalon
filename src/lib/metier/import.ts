@@ -4,6 +4,7 @@
 
 import { isValid, parse } from "date-fns";
 import { aujourdhuiParis } from "./echeance";
+import type { StatutEquipement } from "./parc";
 import { masquerNoms } from "./noms";
 
 export type Cellule = string | number | boolean | Date | null;
@@ -74,7 +75,12 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
       entete: "Univers",
       aide: "Facultatif. Grand ensemble du parc (ex. : Chauffage-ventilation). Créé si absent.",
     },
-    { cle: "famille", entete: "Famille", aide: "Facultatif. Créée si absente." },
+    {
+      cle: "categorie",
+      entete: "Catégorie",
+      alias: ["famille", "type de materiel"],
+      aide: "Facultatif. Nature du matériel (ex. : Oxymètres), rangée dans l'univers de la ligne. Créée si absente.",
+    },
     { cle: "batiment", entete: "Bâtiment", aide: "Facultatif. Obligatoire si niveau ou local est rempli." },
     { cle: "niveau", entete: "Niveau", aide: "Facultatif." },
     { cle: "local", entete: "Local", aide: "Facultatif." },
@@ -87,7 +93,11 @@ export const COLONNES: Record<TypeImport, Colonne[]> = {
       alias: ["date de mise en service"],
       aide: "Facultatif, JJ/MM/AAAA.",
     },
-    { cle: "statut", entete: "Statut", aide: "en service (défaut), hors service ou réformé." },
+    {
+      cle: "statut",
+      entete: "Statut",
+      aide: "en service (défaut), indisponible, en réparation interne ou externe, hors service, déclassé ou réformé.",
+    },
     {
       cle: "notes",
       entete: "Notes",
@@ -154,19 +164,25 @@ const RESULTATS = {
   "avec reserve": "avec_reserves",
   "non conforme": "non_conforme",
 } as const;
-const STATUTS = {
+const STATUTS: Record<string, StatutEquipement> = {
   "en service": "en_service",
+  indisponible: "indisponible",
+  "en reparation interne": "reparation_interne",
+  "reparation interne": "reparation_interne",
+  "en reparation externe": "reparation_externe",
+  "reparation externe": "reparation_externe",
   "hors service": "hors_service",
+  declasse: "declasse",
   reforme: "reforme",
-} as const;
+};
 /** Libellés courants des tableaux de suivi : rattachés au statut le plus proche, l'original est gardé dans les notes. */
-const STATUTS_PROCHES = {
-  "en maintenance": "hors_service",
+const STATUTS_PROCHES: Record<string, StatutEquipement> = {
+  "en maintenance": "indisponible",
+  "en reparation": "indisponible",
   "en panne": "hors_service",
-  "en reparation": "hors_service",
   "au rebut": "reforme",
   rebut: "reforme",
-} as const;
+};
 
 /** Texte sur une seule ligne (retours à la ligne des cellules Excel remplacés par des espaces). */
 function ligne(c: Cellule | undefined): string | null {
@@ -251,6 +267,7 @@ export type DemandeCorrespondance = {
 /** Mots-clés de secours : un en-tête qui contient l'un d'eux est une candidate pour le champ. */
 const MOTS_CLES: Record<string, string[]> = {
   famille: ["famille", "domaine", "categorie", "rubrique", "theme", "thematique"],
+  categorie: ["categorie", "famille", "rubrique"],
   libelle: ["controle", "verification", "libelle", "designation", "intitule", "nature", "operation", "prestation"],
   perimetre: ["perimetre", "equipement", "installation", "lieu", "batiment", "zone", "local", "site"],
   caractere: ["caractere", "obligation", "statut reglementaire", "reglementaire"],
@@ -524,6 +541,7 @@ export type Existant = {
   plans: { type_controle_id: string; equipement_id: string | null; perimetre_libelle: string | null }[];
   localisations: { id: string; batiment: string; niveau: string | null; local: string | null }[];
   univers: { id: string; libelle: string }[];
+  categories: { id: string; libelle: string; univers_id: string | null }[];
 };
 
 export type StatutLigne = "creation" | "ignoree" | "erreur";
@@ -554,21 +572,24 @@ export type OperationsControles = {
 };
 
 export type OperationsEquipements = {
+  /** Famille du type de contrôle des maintenances reprises (jamais celle d'un équipement). */
   familles: string[];
   univers: string[];
+  /** Catégories créées, chacune dans l'univers de ses lignes (null : transversale). */
+  categories: { cle: string; libelle: string; univers: Ref | null }[];
   localisations: { cle: string; batiment: string; niveau: string | null; local: string | null }[];
   equipements: {
     code: string;
     libelle: string;
     univers: Ref | null;
-    famille: Ref | null;
+    categorie: Ref | null;
     localisation: Ref | null;
     marque: string | null;
     modele: string | null;
     numero_serie: string | null;
     notes: string | null;
     date_mise_en_service: string | null;
-    statut: "en_service" | "hors_service" | "reforme";
+    statut: StatutEquipement;
   }[];
   /** Type de contrôle créé pour les maintenances reprises (au plus un par import). */
   types: { cle: string; famille: Ref; libelle: string; caractere: string; periodicite_mois: number }[];
@@ -781,8 +802,10 @@ export type OptionsEquipements = {
   prefixeCode?: string | null;
   /** Bâtiment des lignes dont la colonne « bâtiment » est vide ou absente. */
   batimentParDefaut?: string | null;
-  /** Les lignes d'une seule cellule (« AUTOTENSIOMETRE ») donnent la famille des lignes qui suivent. */
-  titresFamille?: boolean;
+  /** Les lignes d'une seule cellule (« AUTOTENSIOMETRE ») donnent la catégorie des lignes qui suivent. */
+  titresCategorie?: boolean;
+  /** À défaut de colonne ou de titre de section, la catégorie est le nom de la feuille (« Lits », « Défibrillateurs »). */
+  categorieFeuille?: boolean;
   /** Maintenances datées du fichier reprises en contrôles : un plan par équipement créé. */
   maintenance?: OptionsMaintenance | null;
 };
@@ -871,6 +894,7 @@ export function planifierEquipements(
   const ops: OperationsEquipements = {
     familles: [],
     univers: [],
+    categories: [],
     localisations: [],
     equipements: [],
     types: [],
@@ -894,6 +918,24 @@ export function planifierEquipements(
   };
   const refFamille = referentiel(existant.familles, ops.familles);
   const refUnivers = referentiel(existant.univers, ops.univers);
+  /** Catégorie de l'univers de la ligne : existante (de cet univers, ou transversale) ou créée une fois par univers. */
+  const nouvellesCategories = new Map<string, string>();
+  const refCategorie = (libelle: string | null, univers: Ref | null): Ref | null => {
+    if (!libelle) return null;
+    const nom = normaliser(libelle);
+    if (univers === null || "id" in univers) {
+      const id = univers?.id ?? null;
+      const trouvees = existant.categories.filter((c) => normaliser(c.libelle) === nom);
+      const trouvee = trouvees.find((c) => c.univers_id === id) ?? trouvees.find((c) => c.univers_id === null);
+      if (trouvee) return { id: trouvee.id };
+    }
+    const cle = `${univers === null ? "" : "id" in univers ? univers.id : `+${normaliser(univers.nouveau)}`}|${nom}`;
+    if (!nouvellesCategories.has(cle)) {
+      nouvellesCategories.set(cle, libelle);
+      ops.categories.push({ cle, libelle, univers });
+    }
+    return { nouveau: cle };
+  };
   const nouvellesLocs = new Set<string>();
   const codesFichier = new Set<string>();
   const apercu: LigneApercu[] = [];
@@ -915,7 +957,7 @@ export function planifierEquipements(
   const seriesExistantes = new Set(existant.equipements.map((e) => normaliser(e.numero_serie ?? "")).filter(Boolean));
   const seriesFichier = new Map<string, number>();
   const batimentParDefaut = options.batimentParDefaut?.trim() || null;
-  let familleDeSection: string | null = null;
+  let categorieDeSection: string | null = null;
 
   // Type de contrôle des maintenances reprises : existant (même famille, même libellé) ou créé une fois.
   let typeMaintenance: { ref: Ref; periodicite: number } | null = null;
@@ -937,13 +979,13 @@ export function planifierEquipements(
   let feuillePrecedente: string | undefined;
 
   for (const { numero, feuille, valeurs: v, autres, ignoree, structure } of lignes) {
-    // Une nouvelle feuille repart sans famille de section.
-    if (feuille !== feuillePrecedente) familleDeSection = null;
+    // Une nouvelle feuille repart sans catégorie de section.
+    if (feuille !== feuillePrecedente) categorieDeSection = null;
     feuillePrecedente = feuille;
     if (ignoree) {
-      const titreFamille = options.titresFamille && ignoree.motif === "titre";
-      if (titreFamille) familleDeSection = ignoree.texte.slice(0, MAX_TEXTE.court);
-      apercu.push(apercuIgnoree(numero, ignoree, titreFamille ? ` : famille des lignes suivantes` : ""));
+      const titre = options.titresCategorie && ignoree.motif === "titre";
+      if (titre) categorieDeSection = ignoree.texte.slice(0, MAX_TEXTE.court);
+      apercu.push(apercuIgnoree(numero, ignoree, titre ? ` : catégorie des lignes suivantes` : ""));
       continue;
     }
     const erreurs: string[] = [];
@@ -985,8 +1027,11 @@ export function planifierEquipements(
       });
       continue;
     }
-    const famille = ligne(v.famille) ?? (options.titresFamille ? familleDeSection : null);
-    const libelle = ligne(v.libelle) ?? ([marque, modele].filter(Boolean).join(" ") || famille);
+    const categorie =
+      ligne(v.categorie) ??
+      (options.titresCategorie ? categorieDeSection : null) ??
+      (options.categorieFeuille && feuille ? feuille.trim().slice(0, MAX_TEXTE.court) || null : null);
+    const libelle = ligne(v.libelle) ?? ([marque, modele].filter(Boolean).join(" ") || categorie);
     const univers = ligne(v.univers);
     const batiment = ligne(v.batiment) ?? batimentParDefaut;
     const niveau = ligne(v.niveau);
@@ -1021,7 +1066,7 @@ export function planifierEquipements(
           : "Code manquant",
       );
     }
-    if (!libelle) erreurs.push("Libellé manquant (ni libellé, ni marque, ni modèle, ni famille)");
+    if (!libelle) erreurs.push("Libellé manquant (ni libellé, ni marque, ni modèle, ni catégorie)");
     if (notes.length > 2000) {
       erreurs.push(
         `Notes : ${notes.length} caractères pour 2 000 au maximum. Décochez des colonnes reprises dans les notes (« Ajuster l'association des colonnes »)`,
@@ -1035,7 +1080,7 @@ export function planifierEquipements(
     }
     verifierLongueur(libelle, MAX_TEXTE.libelle, "Libellé", erreurs);
     verifierLongueur(univers, MAX_TEXTE.court, "Univers", erreurs);
-    verifierLongueur(famille, MAX_TEXTE.court, "Famille", erreurs);
+    verifierLongueur(categorie, MAX_TEXTE.court, "Catégorie", erreurs);
     verifierLongueur(batiment, MAX_TEXTE.court, "Bâtiment", erreurs);
     verifierLongueur(niveau, MAX_TEXTE.niveau, "Niveau", erreurs);
     verifierLongueur(local, MAX_TEXTE.court, "Local", erreurs);
@@ -1049,7 +1094,9 @@ export function planifierEquipements(
     if (miseEnService.valeur && miseEnService.valeur > aujourdhui) erreurs.push("Mise en service dans le futur");
     if (annee !== null && annee > Number(aujourdhui.slice(0, 4))) erreurs.push("Mise en service dans le futur");
     if (statut === undefined) {
-      erreurs.push(`Statut « ${ligne(v.statut)} » inconnu (en service, hors service, réformé, en maintenance)`);
+      erreurs.push(
+        `Statut « ${ligne(v.statut)} » inconnu (en service, indisponible, en réparation interne ou externe, hors service, déclassé, réformé)`,
+      );
     }
     if (code && motifCode === "double") erreurs.push(`Code « ${code} » en double dans le fichier`);
     if (code) codesFichier.add(normaliser(code));
@@ -1099,11 +1146,12 @@ export function planifierEquipements(
       }
     }
 
+    const refU = univers || !options.universParDefaut ? refUnivers(univers) : { id: options.universParDefaut };
     ops.equipements.push({
       code: codeFinal,
       libelle,
-      univers: univers || !options.universParDefaut ? refUnivers(univers) : { id: options.universParDefaut },
-      famille: refFamille(famille),
+      univers: refU,
+      categorie: refCategorie(categorie, refU),
       localisation: refLoc,
       marque,
       modele,
@@ -1135,7 +1183,7 @@ export function planifierEquipements(
       statut: "creation",
       resume: [
         `${codeFinal}${genere} — ${libelle}`,
-        famille,
+        categorie,
         univers,
         [batiment, niveau, local].filter(Boolean).join(" / "),
         maintenances,

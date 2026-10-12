@@ -77,7 +77,7 @@ export async function optionsPoint(tx: Tx) {
   const [equipements, localisations] = await Promise.all([
     tx<{ id: string; libelle: string }[]>`
       select id, code || ' — ' || libelle as libelle from public.equipements
-      where archive_le is null and statut <> 'reforme' order by code`,
+      where archive_le is null and statut not in ('reforme', 'declasse') order by code`,
     tx<{ id: string; libelle: string }[]>`
       select id, libelle_complet as libelle from public.localisations where archive_le is null order by 2`,
   ]);

@@ -374,7 +374,7 @@ describe("univers du parc", () => {
     await expect(enTantQue(db, "admin", (tx) => tx.query("delete from public.univers"))).rejects.toThrow(
       /permission denied/,
     );
-    await db.query("insert into public.univers (libelle) values ('Biomédical')");
+    await db.query("insert into public.univers (libelle) values ('Univers témoin')");
     await expect(
       enTantQue(db, "technicien", (tx) => tx.query("update public.univers set archive_le = now()")),
     ).rejects.toThrow(/administrateur/);

@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { CheckSquare, ChevronRight, X } from "lucide-react";
-import { BadgeStatut } from "@/components/badges";
+import { BadgeStatut, BadgeStatutEquipement } from "@/components/badges";
 import { MESSAGE_RESEAU } from "@/components/formulaire";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { formaterDate } from "@/lib/format";
+import { estIndisponible, LIBELLES_STATUT_EQUIPEMENT } from "@/lib/metier/parc";
 import type { EquipementListe } from "@/lib/requetes/parc";
 import { cn } from "@/lib/utils";
 import { modifierEquipementsEnMasse } from "./actions";
-import { LIBELLES_STATUT_EQUIPEMENT } from "./champs-equipement";
 
 type Option = { id: string; libelle: string };
 
@@ -32,17 +32,24 @@ function Choix({ nom, libelle, aucun, options }: { nom: string; libelle: string;
   );
 }
 
-/** Liste du parc ; en mode sélection, modification groupée de l'univers, de la localisation ou du statut. */
+/** Liste du parc ; en mode sélection, modification groupée de l'univers, de la catégorie, de la localisation ou du statut. */
 export function ListeEquipements({
   equipements,
   univers,
+  categories,
   localisations,
   peutEcrire,
+  afficherUnivers,
+  aujourdhui,
 }: {
   equipements: EquipementListe[];
   univers: Option[];
+  /** Catégories proposées à la sélection (celles de l'univers affiché) ; vide : choix masqué. */
+  categories: Option[];
   localisations: Option[];
   peutEcrire: boolean;
+  afficherUnivers: boolean;
+  aujourdhui: string;
 }) {
   const [selection, setSelection] = useState<Set<string> | null>(null);
   const [retour, setRetour] = useState<{ erreur?: string; message?: string } | null>(null);
@@ -84,7 +91,7 @@ export function ListeEquipements({
           ) : (
             <Button variant="outline" className="h-11" onClick={() => setSelection(new Set())}>
               <CheckSquare className="size-4" aria-hidden />
-              Sélectionner pour déplacer ou changer le statut
+              Sélectionner pour ranger ou changer le statut
             </Button>
           )}
         </div>
@@ -96,7 +103,7 @@ export function ListeEquipements({
         </p>
       )}
 
-      <ul className={cn("grid gap-2", selection && selection.size > 0 && "pb-72 md:pb-40")}>
+      <ul className={cn("grid gap-2", selection && selection.size > 0 && "pb-96 md:pb-40")}>
         {equipements.map((e) => {
           const contenu = (
             <>
@@ -105,10 +112,21 @@ export function ListeEquipements({
                   {e.code} — {e.libelle}
                 </div>
                 <div className="truncate text-sm text-muted-foreground">
-                  {[e.univers, e.localisation, e.famille].filter(Boolean).join(" · ") || "Sans localisation"}
+                  {[afficherUnivers && e.univers, e.categorie, e.localisation].filter(Boolean).join(" · ") ||
+                    "Ni catégorie, ni localisation"}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {e.statut !== "en_service" && <Badge variant="outline">{LIBELLES_STATUT_EQUIPEMENT[e.statut]}</Badge>}
+                <div className="flex flex-wrap items-center gap-2">
+                  {e.statut !== "en_service" && <BadgeStatutEquipement statut={e.statut} />}
+                  {estIndisponible(e.statut) && e.statut_retour_prevu && (
+                    <span
+                      className={cn(
+                        "text-sm text-muted-foreground",
+                        e.statut_retour_prevu < aujourdhui && "font-semibold text-red-700 dark:text-red-400",
+                      )}
+                    >
+                      retour prévu le {formaterDate(e.statut_retour_prevu)}
+                    </span>
+                  )}
                   {e.synthese && <BadgeStatut statut={e.synthese} />}
                   {e.statuts_plans.length > 0 && (
                     <span className="text-sm text-muted-foreground">
@@ -153,7 +171,10 @@ export function ListeEquipements({
       {selection && selection.size > 0 && (
         <form
           aria-label="Modifier la sélection"
-          className="fixed inset-x-0 bottom-16 z-20 grid gap-3 border-t bg-card p-4 shadow-lg md:bottom-0 md:left-60 md:grid-cols-[auto_1fr_1fr_1fr_auto] md:items-end"
+          className={cn(
+            "fixed inset-x-0 bottom-16 z-20 grid gap-3 border-t bg-card p-4 shadow-lg md:bottom-0 md:left-60 md:items-end",
+            categories.length ? "md:grid-cols-[auto_1fr_1fr_1fr_1fr_auto]" : "md:grid-cols-[auto_1fr_1fr_1fr_auto]",
+          )}
           onSubmit={(ev) => {
             ev.preventDefault();
             const donnees = new FormData(ev.currentTarget);
@@ -177,6 +198,9 @@ export function ListeEquipements({
             {selection.size} sélectionné{selection.size > 1 ? "s" : ""}
           </p>
           <Choix nom="univers_id" libelle="Univers" aucun="Sans univers" options={univers} />
+          {categories.length > 0 && (
+            <Choix nom="categorie_id" libelle="Catégorie" aucun="Sans catégorie" options={categories} />
+          )}
           <Choix nom="localisation_id" libelle="Localisation" aucun="Sans localisation" options={localisations} />
           <Choix
             nom="statut"
@@ -187,7 +211,7 @@ export function ListeEquipements({
             {enCours ? "Application…" : "Appliquer"}
           </Button>
           {retour?.erreur && (
-            <p role="alert" className="text-sm text-destructive md:col-span-5">
+            <p role="alert" className="text-sm text-destructive md:col-span-full">
               {retour.erreur}
             </p>
           )}

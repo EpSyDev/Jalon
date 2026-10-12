@@ -84,7 +84,7 @@ async function preparer(formData: FormData) {
   const associations = lireAssociations(formData.get("associations"));
   if (associations === "invalide") return { erreur: "Association des colonnes invalide." };
 
-  // Options propres aux équipements : univers commun, codes générés, bâtiment, familles de section, maintenances.
+  // Options propres aux équipements : univers commun, codes générés, bâtiment, catégories, maintenances.
   const equipements = type === "equipements";
   const prefixe = texteDe(formData.get("prefixe_code"));
   if (equipements && prefixe !== "" && !PREFIXE_CODE_VALIDE.test(prefixe)) {
@@ -111,7 +111,8 @@ async function preparer(formData: FormData) {
     prefixeCode: equipements && prefixe !== "" ? prefixe : null,
     universParDefaut,
     batimentParDefaut: equipements && batiment !== "" ? batiment : null,
-    titresFamille: equipements && formData.get("titres_famille") === "on",
+    titresCategorie: equipements && formData.get("titres_categorie") === "on",
+    categorieFeuille: equipements && formData.get("categorie_feuille") === "on",
     maintenance,
   };
 
@@ -154,6 +155,11 @@ function resumeCreations(ops: Operations): string[] {
     if (repris) r.push(compter(repris, "dernier contrôle repris", "derniers contrôles repris"));
   } else {
     if (ops.univers.length) r.push(`${compter(ops.univers.length, "univers", "univers")} : ${ops.univers.join(", ")}`);
+    if (ops.categories.length) {
+      r.push(
+        `${compter(ops.categories.length, "catégorie", "catégories")} : ${ops.categories.map((c) => c.libelle).join(", ")}`,
+      );
+    }
     if (ops.localisations.length) r.push(compter(ops.localisations.length, "localisation", "localisations"));
     r.push(compter(ops.equipements.length, "équipement", "équipements"));
     if (ops.types.length) r.push(`type de contrôle : ${ops.types[0].libelle} (${ops.types[0].periodicite_mois} mois)`);

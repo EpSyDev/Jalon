@@ -72,7 +72,7 @@ type Option = { id: string; libelle: string };
 export async function optionsIntervention(tx: Tx) {
   const [equipements, plans, chantiers, intervenants, prestataires] = await Promise.all([
     tx<Option[]>`select id, code || ' — ' || libelle as libelle from public.equipements
-      where archive_le is null and statut <> 'reforme' order by code`,
+      where archive_le is null and statut not in ('reforme', 'declasse') order by code`,
     tx<Option[]>`select p.id, t.libelle || coalesce(' — ' || e.code, ' — ' || p.perimetre_libelle, '') as libelle
       from public.plans_controle p join public.types_controle t on t.id = p.type_controle_id
       left join public.equipements e on e.id = p.equipement_id

@@ -25,17 +25,42 @@ from (values
 ) as c (prestataire, objet, ref, debut, fin, tacite, preavis, montant)
 join public.prestataires p on p.nom = c.prestataire;
 
-insert into public.equipements (code, libelle, famille_id, localisation_id, marque, modele, statut)
-select e.code, e.libelle, f.id, l.id, e.marque, e.modele, e.statut
+insert into public.univers (libelle, description) values
+  ('Technique bâtiment', 'Électricité, chauffage, ascenseurs, sécurité'),
+  ('Biomédical', 'Dispositifs médicaux et aides aux patients');
+
+insert into public.categories_equipement (univers_id, libelle)
+select u.id, c.libelle
 from (values
-  ('TGBT-A', 'Tableau général basse tension A', 'Électricité', 'Bâtiment A / RDC / Local TGBT', 'Marque X', 'TG-400', 'en_service'),
+  ('Technique bâtiment', 'Tableaux électriques'),
+  ('Technique bâtiment', 'Ascenseurs'),
+  ('Technique bâtiment', 'Chaufferie'),
+  ('Technique bâtiment', 'Éclairage de sécurité'),
+  ('Biomédical', 'Oxymètres'),
+  ('Biomédical', 'Lits médicalisés')
+) as c (univers, libelle)
+join public.univers u on u.libelle = c.univers;
+
+insert into public.equipements (code, libelle, univers_id, categorie_id, localisation_id, marque, modele, statut)
+select e.code, e.libelle, c.univers_id, c.id, l.id, e.marque, e.modele, e.statut
+from (values
+  ('TGBT-A', 'Tableau général basse tension A', 'Tableaux électriques', 'Bâtiment A / RDC / Local TGBT', 'Marque X', 'TG-400', 'en_service'),
   ('ASC-B1', 'Ascenseur hall B', 'Ascenseurs', 'Bâtiment B / RDC / Hall', 'Marque Y', 'Lift 8', 'en_service'),
-  ('CHAUD-B', 'Chaudière gaz B', 'Fluides', 'Bâtiment B / Sous-sol / Chaufferie', 'Marque Z', 'CG-90', 'en_service'),
-  ('ECL-SEC-A1', 'Bloc éclairage sécurité couloir est', 'Sécurité incendie', 'Bâtiment A / R+1 / Couloir est', 'Marque W', 'BAES-1', 'hors_service'),
-  ('ANC-01', 'Ancien groupe froid', 'Fluides', 'Bâtiment B / Sous-sol / Chaufferie', 'Marque V', 'GF-2', 'reforme')
-) as e (code, libelle, famille, localisation, marque, modele, statut)
-join public.familles_controle f on f.libelle = e.famille
+  ('CHAUD-B', 'Chaudière gaz B', 'Chaufferie', 'Bâtiment B / Sous-sol / Chaufferie', 'Marque Z', 'CG-90', 'en_service'),
+  ('ECL-SEC-A1', 'Bloc éclairage sécurité couloir est', 'Éclairage de sécurité', 'Bâtiment A / R+1 / Couloir est', 'Marque W', 'BAES-1', 'hors_service'),
+  ('ANC-01', 'Ancien groupe froid', 'Chaufferie', 'Bâtiment B / Sous-sol / Chaufferie', 'Marque V', 'GF-2', 'reforme'),
+  ('OXY-01', 'Oxymètre de pouls', 'Oxymètres', 'Bâtiment A / R+1 / Couloir est', 'Marque O', 'OX-2', 'en_service'),
+  ('LIT-101', 'Lit médicalisé chambre 101', 'Lits médicalisés', 'Bâtiment A / R+1 / Couloir est', 'Marque L', 'Alto', 'en_service')
+) as e (code, libelle, categorie, localisation, marque, modele, statut)
+join public.categories_equipement c on c.libelle = e.categorie
 join public.localisations l on l.libelle_complet = e.localisation;
+
+-- Un lit parti en réparation chez le prestataire, retour attendu dans dix jours.
+update public.equipements
+set statut = 'reparation_externe', statut_depuis = public.aujourdhui() - 5, statut_motif = 'Vérin de relevage bloqué',
+  statut_prestataire_id = (select id from public.prestataires where nom = 'BioMaint Fictif'),
+  statut_retour_prevu = public.aujourdhui() + 10
+where code = 'LIT-101';
 
 insert into public.types_controle (libelle, famille_id, caractere, periodicite_mois, reference_texte)
 select t.libelle, f.id, t.caractere, t.periodicite, 'Donnée fictive — à remplacer par la référence réelle'

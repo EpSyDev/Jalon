@@ -19,6 +19,7 @@ const VIDE: Existant = {
   plans: [],
   localisations: [],
   univers: [],
+  categories: [],
 };
 
 function planifier(tableau: Cellule[][], options: OptionsEquipements = {}, existant: Existant = VIDE) {
@@ -239,7 +240,7 @@ describe("tableaux de suivi réels (relevé de maintenance de fauteuils, suivi b
     });
     expect(p.operations.equipements[1]).toMatchObject({
       date_mise_en_service: "2019-01-15",
-      statut: "hors_service",
+      statut: "indisponible",
       notes: "Statut d'origine : En maintenance",
     });
     expect(p.operations.localisations.map((l) => [l.batiment, l.niveau])).toEqual([
@@ -250,15 +251,63 @@ describe("tableaux de suivi réels (relevé de maintenance de fauteuils, suivi b
     expect(p.operations.familles).toEqual([]);
   });
 
-  it("option : les lignes de titre donnent la famille des lignes suivantes", () => {
-    const p = planifier(SUIVI, { prefixeCode: "BIO-", batimentParDefaut: "Principal", titresFamille: true });
-    expect(p.operations.familles).toEqual(["AUTOTENSIOMETRE", "POUSSE SERINGUE"]);
-    expect(p.operations.equipements.map((e) => e.famille)).toEqual([
-      { nouveau: "AUTOTENSIOMETRE" },
-      { nouveau: "AUTOTENSIOMETRE" },
-      { nouveau: "POUSSE SERINGUE" },
+  it("option : les lignes de titre donnent la catégorie des lignes suivantes (jamais une famille de contrôle)", () => {
+    const p = planifier(SUIVI, { prefixeCode: "BIO-", batimentParDefaut: "Principal", titresCategorie: true });
+    expect(p.operations.familles).toEqual([]);
+    expect(p.operations.categories).toEqual([
+      { cle: "|autotensiometre", libelle: "AUTOTENSIOMETRE", univers: null },
+      { cle: "|pousse seringue", libelle: "POUSSE SERINGUE", univers: null },
     ]);
-    expect(p.lignes[0].resume).toMatch(/famille des lignes suivantes/);
+    expect(p.operations.equipements.map((e) => e.categorie)).toEqual([
+      { nouveau: "|autotensiometre" },
+      { nouveau: "|autotensiometre" },
+      { nouveau: "|pousse seringue" },
+    ]);
+    expect(p.lignes[0].resume).toMatch(/catégorie des lignes suivantes/);
+  });
+
+  it("catégorie rangée dans l'univers choisi ; existante dans cet univers ou transversale : réutilisée", () => {
+    const U = "00000000-0000-4000-a000-0000000000u1";
+    const existant = {
+      ...VIDE,
+      univers: [{ id: U, libelle: "Biomédical" }],
+      categories: [
+        { id: "c-autre", libelle: "Autotensiomètre", univers_id: "00000000-0000-4000-a000-0000000000u2" },
+        { id: "c-bio", libelle: "autotensiometre", univers_id: U },
+        { id: "c-trans", libelle: "Pousse-seringue", univers_id: null },
+      ],
+    };
+    const lu = lireTableau(SUIVI, "equipements", undefined, { codeAuto: true }).lignes!;
+    const p = planifierEquipements(lu, existant, {
+      prefixeCode: "BIO-",
+      batimentParDefaut: "Principal",
+      titresCategorie: true,
+      universParDefaut: U,
+    });
+    expect(p.operations.categories).toEqual([]);
+    expect(p.operations.equipements.map((e) => e.categorie)).toEqual([
+      { id: "c-bio" },
+      { id: "c-bio" },
+      { id: "c-trans" },
+    ]);
+  });
+
+  it("option : sans colonne ni titre, la catégorie est le nom de la feuille", () => {
+    const lu = lireTableau(SUIVI, "equipements", undefined, { codeAuto: true }).lignes!;
+    const lignes = lu.map((l) => ({ ...l, feuille: "Défibrillateurs " }));
+    const p = planifierEquipements(lignes, VIDE, {
+      prefixeCode: "BIO-",
+      batimentParDefaut: "Principal",
+      categorieFeuille: true,
+    });
+    expect(p.operations.categories.map((c) => c.libelle)).toEqual(["Défibrillateurs"]);
+    const avecTitres = planifierEquipements(lignes, VIDE, {
+      prefixeCode: "BIO-",
+      batimentParDefaut: "Principal",
+      categorieFeuille: true,
+      titresCategorie: true,
+    });
+    expect(avecTitres.operations.categories.map((c) => c.libelle)).toEqual(["AUTOTENSIOMETRE", "POUSSE SERINGUE"]);
   });
 
   it("sans bâtiment : un étage bloque avec la piste du bâtiment par défaut", () => {

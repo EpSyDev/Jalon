@@ -21,6 +21,7 @@ export function Formulaire({
   variante = "default",
   confirmation,
   reinitialiser = false,
+  onSucces,
   className,
 }: {
   action: Action;
@@ -32,6 +33,8 @@ export function Formulaire({
   confirmation?: string;
   /** Vider les champs après succès (formulaire d'ajout restant sur la page). */
   reinitialiser?: boolean;
+  /** Appelé après un enregistrement réussi (ex. : refermer un panneau d'édition), avec le message renvoyé. */
+  onSucces?: (message: string | null) => void;
   className?: string;
 }) {
   const [erreur, setErreur] = useState<string | null>(null);
@@ -61,6 +64,7 @@ export function Formulaire({
           setErreur(echec);
           setSucces(resultat && "message" in resultat ? resultat.message : null);
           if (!echec && reinitialiser) formulaire.reset();
+          if (!echec) onSucces?.(resultat && "message" in resultat ? resultat.message : null);
         });
       }}
     >
