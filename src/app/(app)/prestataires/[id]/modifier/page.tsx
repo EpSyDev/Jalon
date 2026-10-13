@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
 import { requete } from "@/lib/auth";
 import { lirePrestataire } from "@/lib/requetes/contrats";
-import { archiverPrestataire, modifierPrestataire } from "../../../contrats/actions";
+import { archiverPrestataire, supprimerPrestataire, modifierPrestataire } from "../../../contrats/actions";
 import { ChampsPrestataire } from "../../champs-prestataire";
 
 export const metadata = { title: "Modifier le prestataire — Jalon" };
@@ -31,12 +32,15 @@ export default async function PageModifierPrestataire({ params }: PageProps<"/pr
         <ChampsPrestataire prestataire={donnees.prestataire} />
       </Formulaire>
       {donnees.role === "admin" && (
-        <Formulaire
-          action={archiverPrestataire.bind(null, id)}
-          libelle="Archiver ce prestataire"
-          variante="destructive"
-          confirmation="Archiver ce prestataire ?"
-        />
+        <div className="grid gap-3 border-t pt-4">
+          <Formulaire
+            action={archiverPrestataire.bind(null, id)}
+            libelle="Archiver ce prestataire"
+            variante="outline"
+            confirmation="Archiver ce prestataire ?"
+          />
+          <BoutonSupprimer action={supprimerPrestataire.bind(null, id)} nom="ce prestataire" />
+        </div>
       )}
     </div>
   );

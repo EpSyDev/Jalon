@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
-import { prochaineEcheance, statutEcheance } from "@/lib/metier/echeance";
+import { prochaineEcheance, seuilEffectif, statutEcheance } from "@/lib/metier/echeance";
 import { CAS_PROCHAINE_ECHEANCE, CAS_STATUT } from "../cas-echeance";
 import { creerBase, enTantQue, UTILISATEURS } from "./base";
 
@@ -54,18 +54,25 @@ describe("rôles et RLS", () => {
     expect(libelle).toBe("Modifié");
   });
 
-  it("personne ne supprime, même un admin", async () => {
+  it("l'historique ne se supprime jamais, même par un admin", async () => {
     for (const role of ["admin", "technicien"] as const) {
-      await expect(enTantQue(db, role, (tx) => tx.query("delete from public.equipements"))).rejects.toThrow(
+      await expect(enTantQue(db, role, (tx) => tx.query("delete from public.controles"))).rejects.toThrow(
         /permission denied/,
       );
     }
   });
 
-  it("le trigger bloque aussi la suppression hors application", async () => {
-    await expect(db.query("delete from public.equipements where code = 'ANC-01'")).rejects.toThrow(
-      /Suppression interdite/,
-    );
+  it("le trigger bloque la suppression d'historique hors application", async () => {
+    await expect(db.query("delete from public.controles")).rejects.toThrow(/Suppression interdite/);
+  });
+
+  it("suppression d'une fiche : admin seulement ; hors application, refusée", async () => {
+    // Hors administrateur, la politique de sécurité ne laisse voir aucune ligne à supprimer.
+    for (const role of ["technicien", "lecture"] as const) {
+      const r = await enTantQue(db, role, (tx) => tx.query("delete from public.localisations returning id"));
+      expect(r.rows).toHaveLength(0);
+    }
+    await expect(db.query("delete from public.univers")).rejects.toThrow(/administrateur/);
   });
 
   it("seul l'admin archive", async () => {
@@ -185,6 +192,22 @@ describe("échéances", () => {
       expect(rows[0].r, c.nom).toBe(c.attendu);
       expect(statutEcheance(c.echeance, c.aujourdhui, c.seuil), c.nom).toBe(rows[0].r);
     }
+  });
+
+  it("parité SQL / TypeScript sur seuil_effectif ; un contrôle mensuel est « à jour » hors des 15 derniers jours", async () => {
+    for (const [seuil, mois] of [
+      [60, 1],
+      [60, 2],
+      [60, 3],
+      [60, 6],
+      [60, 12],
+      [10, 1],
+    ]) {
+      const { rows } = await db.query<{ r: number }>("select public.seuil_effectif($1, $2) as r", [seuil, mois]);
+      expect(rows[0].r).toBe(seuilEffectif(seuil, mois));
+    }
+    expect(statutEcheance("2026-10-30", "2026-10-06", seuilEffectif(60, 1))).toBe("a_jour");
+    expect(statutEcheance("2026-10-20", "2026-10-06", seuilEffectif(60, 1))).toBe("a_echeance");
   });
 
   it("la vue couvre tous les statuts du seed et exclut le matériel réformé", async () => {
@@ -371,9 +394,6 @@ describe("univers du parc", () => {
     await expect(
       enTantQue(db, "lecture", (tx) => tx.query("insert into public.univers (libelle) values ('X')")),
     ).rejects.toThrow(/row-level security/);
-    await expect(enTantQue(db, "admin", (tx) => tx.query("delete from public.univers"))).rejects.toThrow(
-      /permission denied/,
-    );
     await db.query("insert into public.univers (libelle) values ('Univers témoin')");
     await expect(
       enTantQue(db, "technicien", (tx) => tx.query("update public.univers set archive_le = now()")),

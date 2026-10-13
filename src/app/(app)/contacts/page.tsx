@@ -4,7 +4,7 @@ import { LienBouton } from "@/components/lien-bouton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requete } from "@/lib/auth";
-import { lienTelephone } from "@/lib/metier/contacts";
+import { lienTelephone, sousTitreContact, titreContact } from "@/lib/metier/contacts";
 import { listerContacts } from "@/lib/requetes/contacts";
 
 export const metadata = { title: "Contacts — Jalon" };
@@ -56,16 +56,14 @@ export default async function PageContacts({ searchParams }: PageProps<"/contact
           {contacts.map((c) => (
             <li key={c.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
               <Link href={`/contacts/${c.id}`} className="grid min-w-0 flex-1 gap-0.5">
-                <span className="font-medium">{c.nom}</span>
-                <span className="truncate text-sm text-muted-foreground">
-                  {[c.organisation, c.fonction].filter(Boolean).join(" · ") || "—"}
-                </span>
+                <span className="font-medium">{titreContact(c)}</span>
+                <span className="truncate text-sm text-muted-foreground">{sousTitreContact(c) || "—"}</span>
                 <span className="truncate text-sm">{c.telephone ?? c.email ?? "Aucune coordonnée"}</span>
               </Link>
               {c.telephone && (
                 <a
                   href={lienTelephone(c.telephone)}
-                  aria-label={`Appeler ${c.nom}`}
+                  aria-label={`Appeler ${titreContact(c)}`}
                   className="flex size-12 shrink-0 items-center justify-center rounded-lg border bg-primary text-primary-foreground"
                 >
                   <Phone className="size-5" aria-hidden />
@@ -74,7 +72,7 @@ export default async function PageContacts({ searchParams }: PageProps<"/contact
               {c.email && (
                 <a
                   href={`mailto:${c.email}`}
-                  aria-label={`Écrire à ${c.nom}`}
+                  aria-label={`Écrire à ${titreContact(c)}`}
                   className="flex size-12 shrink-0 items-center justify-center rounded-lg border"
                 >
                   <Mail className="size-5" aria-hidden />

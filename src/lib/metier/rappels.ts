@@ -6,7 +6,7 @@ import { alerteContrat, limitePreavis } from "./contrats";
 import { formaterValeur, horsSeuil, libelleSeuils, prochainReleve, statutReleve } from "./releves";
 import { depuisJours, interventionEnRetard, messageRetardChantier, retardChantier } from "./retards";
 
-export type CibleRappel = "plan_controle" | "contrat" | "reserve" | "recap_hebdo";
+export type CibleRappel = "plan_controle" | "contrat" | "reserve" | "recap_hebdo" | "epi";
 
 export type Rappel = {
   cible_type: CibleRappel;
@@ -30,10 +30,14 @@ export type EntreeRappels = {
     perimetre: string | null;
     echeance: string | null;
     statut: "jamais_controle" | "en_retard" | "a_echeance" | "a_jour";
+    /** Périodicité du contrôle : un seuil plus long que la période n'aurait pas de sens (essai mensuel : J7 seulement). */
+    periodicite_mois?: number;
     /** Prestataire intervenant sur devis : le rappel invite à demander le devis (il faut de l'avance). */
     sur_devis?: boolean;
   }[];
   contrats: { id: string; objet: string; prestataire: string; date_fin: string | null; preavis_jours: number | null }[];
+  /** EPI actifs avec date de péremption (le libellé est repris dans le mail ; pas les notes). */
+  epi?: { id: string; libelle: string; quantite: number; date_peremption: string | null }[];
   /** Pas de description : texte libre, jamais repris dans un mail. */
   reserves: {
     id: string;
@@ -95,6 +99,13 @@ export function seuilAtteint(echeance: string, aujourdhui: string, seuils: numbe
   return atteints.length ? `J${Math.min(...atteints)}` : null;
 }
 
+/** Seuils plus courts que la période du contrôle ; à défaut, le seuil le plus court (jamais un rappel permanent). */
+export function seuilsDuPlan(seuils: number[], periodiciteMois?: number): number[] {
+  if (!periodiciteMois) return seuils;
+  const retenus = seuils.filter((s) => s < periodiciteMois * 30);
+  return retenus.length ? retenus : seuils.length ? [Math.min(...seuils)] : [];
+}
+
 export function calculerRappels(e: EntreeRappels): ResultatRappels {
   const rappels: Rappel[] = [];
   const ajouter = (r: Rappel) => {
@@ -103,7 +114,7 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
 
   for (const p of e.plans) {
     if (!p.echeance) continue;
-    const seuil = seuilAtteint(p.echeance, e.aujourdhui, e.seuils);
+    const seuil = seuilAtteint(p.echeance, e.aujourdhui, seuilsDuPlan(e.seuils, p.periodicite_mois));
     if (seuil) {
       ajouter({
         cible_type: "plan_controle",
@@ -136,6 +147,22 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
         libelle: c.objet,
         detail: `${c.prestataire} · ${c.preavis_jours ? `préavis à donner avant le ${fr(limite)}` : `fin le ${fr(c.date_fin)}`}`,
         lien: `/contrats/${c.id}`,
+      });
+    }
+  }
+
+  for (const x of e.epi ?? []) {
+    if (!x.date_peremption) continue;
+    const seuil = seuilAtteint(x.date_peremption, e.aujourdhui, e.seuils);
+    if (seuil) {
+      ajouter({
+        cible_type: "epi",
+        cible_id: x.id,
+        seuil,
+        echeance: x.date_peremption,
+        libelle: x.libelle,
+        detail: `${x.quantite > 1 ? `${x.quantite} pièces · ` : ""}péremption le ${fr(x.date_peremption)}`,
+        lien: `/groupe-electrogene/epi/${x.id}`,
       });
     }
   }
@@ -178,6 +205,15 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
           libelle: libelleReserve(r),
           detail: `réserve à lever depuis le ${fr(r.echeance_levee)}`,
           lien: `/controles/plans/${r.plan_id}`,
+        });
+      }
+    }
+    for (const x of e.epi ?? []) {
+      if (x.date_peremption && x.date_peremption < e.aujourdhui) {
+        lignes.push({
+          libelle: `EPI : ${x.libelle}`,
+          detail: `périmé depuis le ${fr(x.date_peremption)}`,
+          lien: `/groupe-electrogene/epi/${x.id}`,
         });
       }
     }

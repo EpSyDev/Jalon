@@ -10,6 +10,7 @@ import {
   FileText,
   HardHat,
   Search,
+  ShieldCheck,
   TriangleAlert,
   Wrench,
   type LucideIcon,
@@ -26,6 +27,7 @@ const TYPES: Record<string, { libelle: string; icone: LucideIcon }> = {
   intervention: { libelle: "Intervention", icone: Wrench },
   chantier: { libelle: "Chantier", icone: HardHat },
   contact: { libelle: "Contact", icone: Contact },
+  epi: { libelle: "EPI", icone: ShieldCheck },
 };
 
 const EVENEMENT_OUVERTURE = "jalon:recherche";

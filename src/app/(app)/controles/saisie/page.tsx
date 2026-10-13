@@ -5,7 +5,7 @@ import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { formaterDate, LIBELLES_RESULTAT, LIBELLES_STATUT } from "@/lib/format";
 import { aujourdhuiParis, prochaineEcheance } from "@/lib/metier/echeance";
-import { cheminSur } from "@/lib/metier/parc";
+import { retourControle } from "@/lib/metier/parc";
 import { listerPlans } from "@/lib/requetes/controles";
 import { enregistrerControle } from "../actions";
 
@@ -14,7 +14,7 @@ export const metadata = { title: "Saisir un contrôle — Jalon" };
 export default async function PageSaisieControle({ searchParams }: PageProps<"/controles/saisie">) {
   const { plan: planDemande, retour: retourDemande } = await searchParams;
   // Retour à la tournée après la saisie, sinon fiche du plan (action).
-  const retour = cheminSur(retourDemande).startsWith("/controles/tournee") ? cheminSur(retourDemande) : null;
+  const retour = retourControle(retourDemande);
   const plans = await requete((tx) => listerPlans(tx), ["admin", "technicien"]);
   const aujourdhui = aujourdhuiParis();
   const choisi = plans.find((p) => p.plan_controle_id === planDemande);

@@ -1,11 +1,20 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { ChampListe, ChampTexte } from "@/components/champs";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
 import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { listerCategories, listerUnivers, type CategorieListe } from "@/lib/requetes/parc";
-import { archiverCategorie, archiverUnivers, creerCategorie, creerUnivers, rangerCategories } from "../actions";
+import {
+  archiverCategorie,
+  archiverUnivers,
+  creerCategorie,
+  creerUnivers,
+  rangerCategories,
+  supprimerCategorie,
+  supprimerUnivers,
+} from "../actions";
 import { adresseParc } from "../filtres";
 
 export const metadata = { title: "Univers et catégories — Jalon" };
@@ -34,12 +43,15 @@ function Categories({
             {c.libelle} <span className="text-sm text-muted-foreground">· {nombre(c.nb_equipements)}</span>
           </Link>
           {role === "admin" && c.nb_equipements === 0 && (
-            <Formulaire
-              action={archiverCategorie.bind(null, c.id)}
-              libelle="Archiver"
-              variante="outline"
-              confirmation={`Archiver la catégorie « ${c.libelle} » ?`}
-            />
+            <div className="flex flex-wrap gap-2">
+              <Formulaire
+                action={archiverCategorie.bind(null, c.id)}
+                libelle="Archiver"
+                variante="outline"
+                confirmation={`Archiver la catégorie « ${c.libelle} » ?`}
+              />
+              <BoutonSupprimer action={supprimerCategorie.bind(null, c.id)} nom={`la catégorie « ${c.libelle} »`} />
+            </div>
           )}
         </li>
       ))}
@@ -169,12 +181,15 @@ export default async function PageUnivers() {
                   </details>
                 )}
                 {role === "admin" && u.nb_equipements === 0 && siennes.length === 0 && (
-                  <Formulaire
-                    action={archiverUnivers.bind(null, u.id)}
-                    libelle="Archiver l'univers"
-                    variante="outline"
-                    confirmation="Archiver cet univers ?"
-                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Formulaire
+                      action={archiverUnivers.bind(null, u.id)}
+                      libelle="Archiver l'univers"
+                      variante="outline"
+                      confirmation="Archiver cet univers ?"
+                    />
+                    <BoutonSupprimer action={supprimerUnivers.bind(null, u.id)} nom={`l'univers « ${u.libelle} »`} />
+                  </div>
                 )}
               </li>
             );

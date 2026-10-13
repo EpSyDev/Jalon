@@ -23,7 +23,7 @@ import {
   schemaTypeControle,
 } from "@/lib/metier/controles";
 import { aujourdhuiParis } from "@/lib/metier/echeance";
-import { cheminSur } from "@/lib/metier/parc";
+import { retourControle } from "@/lib/metier/parc";
 import { creerControleComplet } from "@/lib/requetes/nouveau-controle";
 
 const LIBELLES: Record<string, string> = {
@@ -172,8 +172,7 @@ export async function enregistrerControle(formData: FormData): Promise<Resultat>
   });
   if (echec) return { erreur: echec };
   rafraichir();
-  const retour = cheminSur(formData.get("retour"));
-  redirect(retour.startsWith("/controles/tournee") ? retour : `/controles/plans/${donnees.plan_controle_id}`);
+  redirect(retourControle(formData.get("retour")) ?? `/controles/plans/${donnees.plan_controle_id}`);
 }
 
 /** Tournée : contrôle conforme réalisé aujourd'hui, en une touche (après confirmation à l'écran). */

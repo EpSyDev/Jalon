@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Pencil } from "lucide-react";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
 import { Button } from "@/components/ui/button";
 import { formaterDate } from "@/lib/format";
@@ -25,6 +26,7 @@ export function PanneauInfos({
   options,
   action,
   archiver,
+  supprimer,
   ouvertParDefaut = false,
 }: {
   equipement: EquipementDetail;
@@ -33,6 +35,8 @@ export function PanneauInfos({
   action?: Action;
   /** Administrateur seulement. */
   archiver?: Action;
+  /** Administrateur seulement : suppression définitive (refusée si l'équipement a un historique). */
+  supprimer?: Action;
   ouvertParDefaut?: boolean;
 }) {
   const [ouvert, setOuvert] = useState(ouvertParDefaut && Boolean(action));
@@ -82,13 +86,15 @@ export function PanneauInfos({
             <ChampsEquipement options={options} equipement={e} />
           </Formulaire>
           {archiver && (
-            <Formulaire
-              action={archiver}
-              libelle="Archiver cet équipement"
-              variante="destructive"
-              confirmation="Archiver cet équipement ? Son QR code ne fonctionnera plus. L'historique est conservé."
-              className="border-t pt-6"
-            />
+            <div className="grid gap-3 border-t pt-6">
+              <Formulaire
+                action={archiver}
+                libelle="Archiver cet équipement"
+                variante="outline"
+                confirmation="Archiver cet équipement ? Son QR code ne fonctionnera plus. L'historique est conservé."
+              />
+              {supprimer && <BoutonSupprimer action={supprimer} nom="cet équipement" />}
+            </div>
           )}
         </div>
       ) : (

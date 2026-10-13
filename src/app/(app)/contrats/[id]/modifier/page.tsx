@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
 import { requete } from "@/lib/auth";
 import { lireContrat, optionsPrestataires } from "@/lib/requetes/contrats";
-import { archiverContrat, modifierContrat } from "../../actions";
+import { archiverContrat, supprimerContrat, modifierContrat } from "../../actions";
 import { ChampsContrat } from "../../champs-contrat";
 
 export const metadata = { title: "Modifier le contrat — Jalon" };
@@ -35,12 +36,15 @@ export default async function PageModifierContrat({ params }: PageProps<"/contra
         <ChampsContrat prestataires={donnees.prestataires} contrat={donnees.contrat} />
       </Formulaire>
       {donnees.role === "admin" && (
-        <Formulaire
-          action={archiverContrat.bind(null, id)}
-          libelle="Archiver ce contrat"
-          variante="destructive"
-          confirmation="Archiver ce contrat ? Les plans de contrôle rattachés seront détachés."
-        />
+        <div className="grid gap-3 border-t pt-4">
+          <Formulaire
+            action={archiverContrat.bind(null, id)}
+            libelle="Archiver ce contrat"
+            variante="outline"
+            confirmation="Archiver ce contrat ? Les plans de contrôle rattachés seront détachés."
+          />
+          <BoutonSupprimer action={supprimerContrat.bind(null, id)} nom="ce contrat" />
+        </div>
       )}
     </div>
   );

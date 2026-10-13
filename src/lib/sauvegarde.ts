@@ -19,6 +19,7 @@ export const TABLES = [
   "univers",
   "categories_equipement",
   "equipements",
+  "epi",
   "points_releve",
   "releves",
   "contrats",

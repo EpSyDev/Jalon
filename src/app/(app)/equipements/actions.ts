@@ -2,7 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ADMIN, executer, ID_INVALIDE, idsValides, RefusMetier, valider, type Resultat } from "@/lib/actions";
+import {
+  ADMIN,
+  executer,
+  ID_INVALIDE,
+  idsValides,
+  RefusMetier,
+  supprimerFiche,
+  valider,
+  type Resultat,
+} from "@/lib/actions";
 import type { Tx } from "@/lib/db";
 import { premierMessage } from "@/lib/metier/controles";
 import {
@@ -264,4 +273,38 @@ export async function modifierEquipementsEnMasse(formData: FormData): Promise<Re
   if (echec) return { erreur: echec };
   rafraichir();
   return { message: `${n} équipement${n > 1 ? "s" : ""} modifié${n > 1 ? "s" : ""}.` };
+}
+
+// --- Suppression définitive (administrateur) -------------------------------------------------
+
+export async function supprimerEquipement(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer((tx) => supprimerFiche(tx, "equipements", id), ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  redirect("/equipements");
+}
+
+export async function supprimerLocalisation(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer((tx) => supprimerFiche(tx, "localisations", id), ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: "Localisation supprimée." };
+}
+
+export async function supprimerUnivers(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer((tx) => supprimerFiche(tx, "univers", id), ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: "Univers supprimé." };
+}
+
+export async function supprimerCategorie(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer((tx) => supprimerFiche(tx, "categories_equipement", id), ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  return { message: "Catégorie supprimée." };
 }

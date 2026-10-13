@@ -22,6 +22,11 @@ export function prochaineEcheance(dernierControle: string | null, periodiciteMoi
   return format(addMonths(parseISO(dernierControle), periodiciteMois), ISO);
 }
 
+/** Seuil « à échéance » d'un plan : jamais plus de la moitié de sa période (essai mensuel : 15 jours). */
+export function seuilEffectif(seuilJours: number, periodiciteMois: number): number {
+  return Math.min(seuilJours, periodiciteMois * 15);
+}
+
 export function statutEcheance(echeance: string | null, aujourdhui: string, seuilJours: number): StatutEcheance {
   if (echeance === null) return "jamais_controle";
   if (echeance < aujourdhui) return "en_retard";

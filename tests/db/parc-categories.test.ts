@@ -232,3 +232,50 @@ describe("reprise des familles d'équipement en catégories (migration 202610120
     );
   });
 });
+
+describe("suppression définitive et EPI (pilote postgres)", () => {
+  it("admin supprime un EPI : tracé au journal avec son contenu ; technicien et lecture ne le peuvent pas", async () => {
+    const r = await enTantQueUtilisateur(p.sql, "admin", async (tx) => {
+      const [{ id }] = await tx<{ id: string }[]>`
+        insert into public.epi (libelle, quantite, date_peremption) values ('Gants isolants', 4, '2027-03-01') returning id`;
+      const supprimes = await tx`delete from public.epi where id = ${id} returning id`;
+      const [j] = await tx<{ action: string; avant: { libelle: string } | null; apres: unknown }[]>`
+        select action, avant, apres from public.journal_audit
+        where table_cible = 'epi' and enregistrement_id = ${id} and action = 'delete'`;
+      return { supprimes: supprimes.length, j };
+    });
+    expect(r.supprimes).toBe(1);
+    expect(r.j).toMatchObject({ action: "delete", avant: { libelle: "Gants isolants" }, apres: null });
+
+    for (const role of ["technicien", "lecture"] as const) {
+      const n = await enTantQueUtilisateur(p.sql, role, async (tx) => {
+        const [{ id }] = await tx<{ id: string }[]>`
+          insert into public.epi (libelle) values ('X') returning id`.catch(() => [{ id: "" }]);
+        return id ? (await tx`delete from public.epi where id = ${id} returning id`).length : 0;
+      });
+      expect(n).toBe(0);
+    }
+  });
+
+  it("un équipement avec historique ne se supprime pas (clés étrangères) ; sans historique, oui", async () => {
+    const { supprimerFiche } = await import("@/lib/actions");
+    const r = await enTantQueUtilisateur(p.sql, "admin", async (tx) => {
+      const [libre] = await tx<{ id: string }[]>`
+        insert into public.equipements (code, libelle) values ('LIBRE-1', 'Sans historique') returning id`;
+      await supprimerFiche(tx, "equipements", libre.id);
+      const restant = await tx`select 1 from public.equipements where id = ${libre.id}`;
+      let refus = "";
+      await tx`savepoint s`;
+      try {
+        const [{ id }] = await tx<{ id: string }[]>`select id from public.equipements where code = 'TGBT-A'`;
+        await supprimerFiche(tx, "equipements", id);
+      } catch (e) {
+        refus = (e as Error).message;
+        await tx`rollback to savepoint s`;
+      }
+      return { restant: restant.length, refus };
+    });
+    expect(r.restant).toBe(0);
+    expect(r.refus).toMatch(/encore utilisé ailleurs/);
+  });
+});

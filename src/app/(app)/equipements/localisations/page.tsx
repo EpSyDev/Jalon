@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { ChampTexte } from "@/components/champs";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
 import { requete } from "@/lib/auth";
 import { listerLocalisations } from "@/lib/requetes/parc";
-import { archiverLocalisation, creerLocalisation } from "../actions";
+import { archiverLocalisation, creerLocalisation, supprimerLocalisation } from "../actions";
 
 export const metadata = { title: "Localisations — Jalon" };
 
@@ -55,12 +56,15 @@ export default async function PageLocalisations() {
                 )}
               </span>
               {role === "admin" && l.nb_equipements === 0 && (
-                <Formulaire
-                  action={archiverLocalisation.bind(null, l.id)}
-                  libelle="Archiver"
-                  variante="outline"
-                  confirmation="Archiver cette localisation ?"
-                />
+                <div className="flex flex-wrap gap-2">
+                  <Formulaire
+                    action={archiverLocalisation.bind(null, l.id)}
+                    libelle="Archiver"
+                    variante="outline"
+                    confirmation="Archiver cette localisation ?"
+                  />
+                  <BoutonSupprimer action={supprimerLocalisation.bind(null, l.id)} nom="cette localisation" />
+                </div>
               )}
             </li>
           ))}

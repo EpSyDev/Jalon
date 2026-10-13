@@ -4,7 +4,7 @@ import { Mail, Phone } from "lucide-react";
 import { z } from "zod";
 import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
-import { lienTelephone } from "@/lib/metier/contacts";
+import { lienTelephone, sousTitreContact, titreContact } from "@/lib/metier/contacts";
 import { lireContact } from "@/lib/requetes/contacts";
 
 export const metadata = { title: "Contact — Jalon" };
@@ -25,8 +25,8 @@ export default async function PageContact({ params }: PageProps<"/contacts/[id]"
         ← Contacts
       </Link>
       <div className="grid gap-1">
-        <h1 className="text-2xl font-semibold">{c.nom}</h1>
-        <p className="text-muted-foreground">{[c.organisation, c.fonction].filter(Boolean).join(" · ")}</p>
+        <h1 className="text-2xl font-semibold">{titreContact(c)}</h1>
+        <p className="text-muted-foreground">{sousTitreContact(c)}</p>
       </div>
 
       {(c.telephone || c.email) && (

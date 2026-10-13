@@ -265,3 +265,9 @@ export function cheminSur(suite: unknown): string {
   if (typeof suite !== "string") return "/";
   return /^\/(?![/\\])[^\s]*$/.test(suite) ? suite : "/";
 }
+
+/** Retour après une saisie de contrôle : la tournée ou le suivi du groupe électrogène, sinon la fiche du plan. */
+export function retourControle(suite: unknown): string | null {
+  const chemin = cheminSur(suite);
+  return chemin.startsWith("/controles/tournee") || chemin === "/groupe-electrogene" ? chemin : null;
+}

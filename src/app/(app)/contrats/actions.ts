@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { contactDepuisPrestataire } from "@/lib/requetes/contacts";
 import { redirect } from "next/navigation";
-import { ADMIN, executer, ID_INVALIDE, idsValides, RefusMetier, valider, type Resultat } from "@/lib/actions";
+import {
+  ADMIN,
+  executer,
+  ID_INVALIDE,
+  idsValides,
+  RefusMetier,
+  supprimerFiche,
+  valider,
+  type Resultat,
+} from "@/lib/actions";
 import { schemaContrat, schemaPrestataire } from "@/lib/metier/contrats";
 
 const LIBELLES: Record<string, string> = {
@@ -104,6 +113,30 @@ export async function archiverContrat(id: string): Promise<Resultat> {
     // Les plans gardent leur historique : on détache simplement le contrat archivé.
     await tx`update public.plans_controle set contrat_id = null where contrat_id = ${id}`;
     await tx`update public.contrats set archive_le = now() where id = ${id}`;
+  }, ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  redirect("/contrats");
+}
+
+export async function supprimerPrestataire(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer(async (tx) => {
+    // Les contacts créés depuis ce prestataire gardent leur fiche : seul le lien informatif disparaît.
+    await tx`update public.contacts set prestataire_id = null where prestataire_id = ${id}`;
+    await supprimerFiche(tx, "prestataires", id);
+  }, ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  redirect("/prestataires");
+}
+
+export async function supprimerContrat(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer(async (tx) => {
+    // Comme à l'archivage : les plans de contrôle rattachés sont détachés, pas supprimés.
+    await tx`update public.plans_controle set contrat_id = null where contrat_id = ${id}`;
+    await supprimerFiche(tx, "contrats", id);
   }, ADMIN);
   if (echec) return { erreur: echec };
   rafraichir();

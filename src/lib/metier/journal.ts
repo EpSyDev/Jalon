@@ -5,7 +5,7 @@ export type Entree = {
   id: number | string;
   table_cible: string;
   enregistrement_id: string;
-  action: "insert" | "update" | "archive";
+  action: "insert" | "update" | "archive" | "delete";
   utilisateur_nom: string | null;
   avant: Record<string, unknown> | null;
   apres: Record<string, unknown> | null;
@@ -18,6 +18,7 @@ export const LIBELLES_TABLE: Record<string, string> = {
   equipements: "Équipement",
   univers: "Univers",
   categories_equipement: "Catégorie de matériel",
+  epi: "EPI",
   localisations: "Localisation",
   familles_controle: "Famille",
   types_controle: "Type de contrôle",
@@ -37,7 +38,12 @@ export const LIBELLES_TABLE: Record<string, string> = {
   profils: "Utilisateur",
 };
 
-export const LIBELLES_ACTION = { insert: "Création", update: "Modification", archive: "Archivage" } as const;
+export const LIBELLES_ACTION = {
+  insert: "Création",
+  update: "Modification",
+  archive: "Archivage",
+  delete: "Suppression",
+} as const;
 
 const LIBELLES_CHAMP: Record<string, string> = {
   code: "Code",
@@ -87,6 +93,8 @@ const LIBELLES_CHAMP: Record<string, string> = {
   local: "Local",
   contact_nom: "Contact",
   mode_intervention: "Intervention",
+  date_peremption: "Péremption",
+  detail: "Détail",
   email: "Mail",
   telephone: "Téléphone",
   organisation: "Organisation",
@@ -233,8 +241,11 @@ export function changements(
 }
 
 /** Titre de l'enregistrement d'après son contenu (code et libellé, titre, objet, nom…). */
-export function titreEnregistrement(e: Pick<Entree, "apres" | "enregistrement_id">): string {
-  const x = e.apres ?? {};
+export function titreEnregistrement(
+  e: Pick<Entree, "apres" | "enregistrement_id"> & { avant?: Entree["avant"] },
+): string {
+  // Suppression : seul « avant » garde le contenu.
+  const x = e.apres ?? e.avant ?? {};
   const t = (k: string) => (typeof x[k] === "string" && x[k] !== "" ? (x[k] as string) : null);
   if (t("code") && t("libelle")) return `${t("code")} — ${t("libelle")}`;
   const titre = t("titre") ?? t("objet") ?? t("nom") ?? t("libelle") ?? t("cle") ?? t("description");
@@ -245,7 +256,11 @@ export function titreEnregistrement(e: Pick<Entree, "apres" | "enregistrement_id
 }
 
 /** Lien vers la fiche concernée, quand elle existe. */
-export function lienEnregistrement(e: Pick<Entree, "table_cible" | "enregistrement_id" | "apres">): string | null {
+export function lienEnregistrement(
+  e: Pick<Entree, "table_cible" | "enregistrement_id" | "apres"> & { action?: Entree["action"] },
+): string | null {
+  // Une fiche supprimée n'a plus de page.
+  if (e.action === "delete") return null;
   const id = e.enregistrement_id;
   const x = e.apres ?? {};
   const champ = (k: string) => (typeof x[k] === "string" && UUID.test(x[k] as string) ? (x[k] as string) : null);
@@ -281,6 +296,8 @@ export function lienEnregistrement(e: Pick<Entree, "table_cible" | "enregistreme
     case "univers":
     case "categories_equipement":
       return "/equipements/univers";
+    case "epi":
+      return `/groupe-electrogene/epi/${id}`;
     case "localisations":
       return "/equipements/localisations";
     case "parametres":

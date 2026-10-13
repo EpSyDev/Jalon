@@ -111,11 +111,17 @@ describe("contacts (pilote postgres)", () => {
       return { filtre, recherche };
     });
     expect(r.filtre.map((c) => c.nom)).toEqual(["Hélène Martin"]);
-    expect(r.recherche).toEqual([{ type: "contact", titre: "Hélène Martin" }]);
+    // L'organisation passe avant le nom, dans la recherche comme dans les listes.
+    expect(r.recherche).toEqual([{ type: "contact", titre: "Pompiers" }]);
     await expect(
       enTantQueUtilisateur(p.sql, "lecture", (tx) => tx`insert into public.contacts (nom) values ('X')`),
     ).rejects.toThrow();
-    await expect(enTantQueUtilisateur(p.sql, "admin", (tx) => tx`delete from public.contacts`)).rejects.toThrow();
+    const supprimes = await enTantQueUtilisateur(
+      p.sql,
+      "technicien",
+      (tx) => tx`delete from public.contacts returning id`,
+    );
+    expect(supprimes).toHaveLength(0);
   });
 });
 

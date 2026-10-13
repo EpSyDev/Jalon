@@ -12,7 +12,7 @@ import { entourageEquipement } from "@/lib/requetes/entourage-equipement";
 import { ficheEquipement, lireEquipement, optionsEquipement } from "@/lib/requetes/parc";
 import { HistoriqueFiche } from "@/components/journal";
 import { HISTORIQUE_VIDE, historiqueFiche } from "@/lib/requetes/journal";
-import { archiverEquipement, changerStatutEquipement, modifierEquipement } from "../actions";
+import { archiverEquipement, changerStatutEquipement, modifierEquipement, supprimerEquipement } from "../actions";
 import { adresseParc } from "../filtres";
 import { PanneauInfos } from "./panneau-infos";
 import { PanneauStatut } from "./panneau-statut";
@@ -112,6 +112,7 @@ export default async function PageEquipement({ params, searchParams }: PageProps
         options={options ?? { univers: [], categories: [], localisations: [], prestataires: [] }}
         action={peutEcrire ? modifierEquipement.bind(null, e.id) : undefined}
         archiver={role === "admin" ? archiverEquipement.bind(null, e.id) : undefined}
+        supprimer={role === "admin" ? supprimerEquipement.bind(null, e.id) : undefined}
         ouvertParDefaut={modifier === "1"}
       />
 

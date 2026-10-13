@@ -49,3 +49,33 @@ export async function executer(fn: (tx: Tx) => Promise<unknown>, roles: Role[] =
     return e instanceof RefusMetier ? e.message : messageErreurBase(e);
   }
 }
+
+/** Fiches que l'administrateur peut supprimer définitivement (le reste ne s'archive que). */
+export type TableSupprimable =
+  | "epi"
+  | "contacts"
+  | "prestataires"
+  | "contrats"
+  | "equipements"
+  | "localisations"
+  | "univers"
+  | "categories_equipement";
+
+/**
+ * Suppression définitive d'une fiche, dans la transaction de l'appelant (administrateur, vérifié par la base).
+ * Refusée tant que l'élément est référencé ailleurs : l'historique ne disparaît jamais.
+ */
+export async function supprimerFiche(tx: Tx, table: TableSupprimable, id: string): Promise<void> {
+  let lignes: readonly unknown[];
+  try {
+    lignes = await tx`delete from ${tx(`public.${table}`)} where id = ${id} returning id`;
+  } catch (e) {
+    if ((e as { code?: string })?.code === "23503") {
+      throw new RefusMetier(
+        "Suppression impossible : cet élément est encore utilisé ailleurs (historique, contrôles, rattachements…). Archivez-le plutôt.",
+      );
+    }
+    throw e;
+  }
+  if (lignes.length === 0) throw new RefusMetier("Élément introuvable : rechargez la page.");
+}

@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { BoutonSupprimer } from "@/components/bouton-supprimer";
 import { Formulaire } from "@/components/formulaire";
+import { titreContact } from "@/lib/metier/contacts";
 import { requete } from "@/lib/auth";
 import { lireContact, optionsPrestataires } from "@/lib/requetes/contacts";
-import { archiverContact, modifierContact } from "../../actions";
+import { archiverContact, supprimerContact, modifierContact } from "../../actions";
 import { ChampsContact } from "../../champs-contact";
 
 export const metadata = { title: "Modifier le contact — Jalon" };
@@ -24,19 +26,22 @@ export default async function PageModifierContact({ params }: PageProps<"/contac
   return (
     <div className="mx-auto grid max-w-xl gap-4 p-4 md:p-8">
       <Link href={`/contacts/${id}`} className="text-sm text-muted-foreground underline">
-        ← {donnees.contact.nom}
+        ← {titreContact(donnees.contact)}
       </Link>
       <h1 className="text-2xl font-semibold">Modifier le contact</h1>
       <Formulaire action={modifierContact.bind(null, id)} libelle="Enregistrer">
         <ChampsContact contact={donnees.contact} prestataires={donnees.prestataires} />
       </Formulaire>
       {donnees.role === "admin" && (
-        <Formulaire
-          action={archiverContact.bind(null, id)}
-          libelle="Archiver ce contact"
-          variante="destructive"
-          confirmation="Archiver ce contact ?"
-        />
+        <div className="grid gap-3 border-t pt-4">
+          <Formulaire
+            action={archiverContact.bind(null, id)}
+            libelle="Archiver ce contact"
+            variante="outline"
+            confirmation="Archiver ce contact ?"
+          />
+          <BoutonSupprimer action={supprimerContact.bind(null, id)} nom="ce contact" />
+        </div>
       )}
     </div>
   );

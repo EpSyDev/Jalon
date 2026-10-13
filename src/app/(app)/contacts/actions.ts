@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { ADMIN, executer, ID_INVALIDE, idsValides, valider, type Resultat } from "@/lib/actions";
+import { ADMIN, executer, ID_INVALIDE, idsValides, supprimerFiche, valider, type Resultat } from "@/lib/actions";
 import { schemaContact } from "@/lib/metier/contacts";
 
 const LIBELLES: Record<string, string> = {
@@ -42,6 +42,14 @@ export async function modifierContact(id: string, formData: FormData): Promise<R
 export async function archiverContact(id: string): Promise<Resultat> {
   if (!idsValides(id)) return ID_INVALIDE;
   const echec = await executer((tx) => tx`update public.contacts set archive_le = now() where id = ${id}`, ADMIN);
+  if (echec) return { erreur: echec };
+  rafraichir();
+  redirect("/contacts");
+}
+
+export async function supprimerContact(id: string): Promise<Resultat> {
+  if (!idsValides(id)) return ID_INVALIDE;
+  const echec = await executer((tx) => supprimerFiche(tx, "contacts", id), ADMIN);
   if (echec) return { erreur: echec };
   rafraichir();
   redirect("/contacts");

@@ -44,10 +44,10 @@ export async function executerRappels(): Promise<BilanRappels> {
         p.valeur,
       ]),
     );
-    const [plans, contrats, reserves, envoyes, interventions, chantiers, releves] = await Promise.all([
+    const [plans, contrats, reserves, envoyes, interventions, chantiers, releves, epi] = await Promise.all([
       tx<EntreeRappels["plans"]>`
         select plan_controle_id as id, type_libelle as libelle, coalesce(equipement_code, perimetre) as perimetre,
-          prochaine_echeance as echeance, statut_echeance as statut,
+          prochaine_echeance as echeance, statut_echeance as statut, periodicite_mois,
           coalesce((select pr.mode_intervention = 'devis' from public.prestataires pr where pr.id = prestataire_id), false)
             as sur_devis
         from public.v_plans_controle_echeance`,
@@ -72,6 +72,9 @@ export async function executerRappels(): Promise<BilanRappels> {
         select id, titre, statut, date_debut, date_fin_prevue from public.chantiers
         where archive_le is null and statut in ('prevu', 'en_cours', 'suspendu')`,
       listerPoints(tx, true),
+      tx<NonNullable<EntreeRappels["epi"]>>`
+        select id, libelle, quantite, date_peremption from public.epi
+        where archive_le is null and date_peremption is not null`,
     ]);
     const seuilsParam = parametres.get("seuils_rappel_jours");
     const seuils = normaliserSeuils(Array.isArray(seuilsParam) ? seuilsParam : []);
@@ -90,6 +93,7 @@ export async function executerRappels(): Promise<BilanRappels> {
         interventions,
         chantiers,
         releves,
+        epi,
         alerteSauvegarde: messageSauvegarde(etatSauvegarde(derniereSauvegarde, aujourdhui)),
         dejaEnvoyes: new Set(envoyes.map(cleRappel)),
       } satisfies EntreeRappels,

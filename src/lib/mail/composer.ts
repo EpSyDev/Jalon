@@ -14,6 +14,7 @@ const TITRES = {
   plan_controle: "Contrôles à venir",
   contrat: "Contrats : préavis à venir",
   reserve: "Réserves à lever",
+  epi: "EPI : péremption à venir",
 } as const;
 
 type Ligne = { libelle: string; detail: string; lien: string; seuil?: string };
@@ -22,7 +23,7 @@ export function composerMail(r: ResultatRappels, appUrl: string): Mail {
   const base = appUrl.replace(/\/$/, "");
   const sections: { titre: string; lignes: Ligne[] }[] = [];
 
-  for (const type of ["plan_controle", "contrat", "reserve"] as const) {
+  for (const type of ["plan_controle", "contrat", "reserve", "epi"] as const) {
     const lignes = r.rappels.filter((x) => x.cible_type === type);
     if (lignes.length) sections.push({ titre: TITRES[type], lignes });
   }
