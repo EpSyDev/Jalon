@@ -18,6 +18,8 @@ export type PlanJour = {
   perimetre: string | null;
   prestataire_id: string | null;
   prestataire_nom: string | null;
+  /** Intervient sur devis : le devis se demande avant l'échéance. */
+  prestataire_sur_devis?: boolean;
 };
 
 export type EntreeJalon = {
@@ -49,6 +51,12 @@ const ORDRE_CARACTERE: Caractere[] = ["reglementaire", "obligatoire", "interne"]
 const LIBELLE_CARACTERE = { reglementaire: "réglementaire", obligatoire: "obligatoire", interne: "interne" } as const;
 
 const perimetreDe = (p: PlanJour) => [p.equipement_code, p.perimetre].filter(Boolean).join(" — ");
+
+/** Détail d'un contrôle : périmètre, et rappel de demander le devis si le prestataire intervient sur devis. */
+const detailPlan = (p: PlanJour, parDefaut: string) =>
+  [perimetreDe(p) || parDefaut, p.prestataire_sur_devis && "prestataire sur devis : demander le devis"]
+    .filter(Boolean)
+    .join(" · ");
 
 /** Le plus petit élément selon la clé (stable : à égalité, le premier). */
 function premier<T>(liste: T[], cle: (x: T) => string): T | undefined {
@@ -96,7 +104,7 @@ export function jalonDuJour(e: EntreeJalon): JalonDuJour | null {
       const autres = e.plans.filter((p) => p.statut_echeance === "en_retard").length - 1;
       return {
         titre: retard.type_libelle,
-        detail: perimetreDe(retard) || "Contrôle en retard",
+        detail: detailPlan(retard, "Contrôle en retard"),
         pourquoi: `Contrôle ${LIBELLE_CARACTERE[caractere]} en retard depuis ${jours(n)} (échéance du ${fr(retard.prochaine_echeance!)}) : le plus ancien${caractere === "reglementaire" ? " des retards réglementaires" : ""}${autres > 0 ? `, sur ${autres + 1} retards` : ""}.`,
         lien: `/controles/plans/${retard.plan_controle_id}`,
         action: "Saisir le contrôle",
@@ -135,7 +143,7 @@ export function jalonDuJour(e: EntreeJalon): JalonDuJour | null {
       const n = e.plans.filter((p) => p.statut_echeance === "jamais_controle").length;
       return {
         titre: jamais.type_libelle,
-        detail: perimetreDe(jamais) || "Jamais contrôlé",
+        detail: detailPlan(jamais, "Jamais contrôlé"),
         pourquoi: `Aucun contrôle enregistré : sans le dernier contrôle connu, Jalon ne peut pas calculer l'échéance${n > 1 ? ` (${n} plans dans ce cas)` : ""}.`,
         lien: `/controles/saisie?plan=${jamais.plan_controle_id}`,
         action: "Saisir le dernier contrôle",
@@ -154,7 +162,7 @@ export function jalonDuJour(e: EntreeJalon): JalonDuJour | null {
     const n = ecart(e.aujourdhui, proche.prochaine_echeance!);
     return {
       titre: proche.type_libelle,
-      detail: perimetreDe(proche) || "Échéance proche",
+      detail: detailPlan(proche, "Échéance proche"),
       pourquoi: `Échéance la plus proche : ${n === 0 ? "aujourd'hui" : `dans ${jours(n)}`} (${fr(proche.prochaine_echeance!)}). Le temps de commander la visite.`,
       lien: `/controles/plans/${proche.plan_controle_id}`,
       action: "Voir le plan",

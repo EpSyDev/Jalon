@@ -14,6 +14,7 @@ export type PlanEcheance = {
   perimetre: string | null;
   prestataire_id: string | null;
   prestataire_nom: string | null;
+  prestataire_sur_devis: boolean;
   periodicite_mois: number;
   dernier_controle: string | null;
   prochaine_echeance: string | null;
@@ -25,7 +26,8 @@ export type PlanEcheance = {
 export function listerPlans(tx: Tx) {
   return tx<PlanEcheance[]>`
     select v.plan_controle_id, v.type_controle_id, v.type_libelle, v.caractere, v.famille_id, f.libelle as famille_libelle,
-      v.equipement_id, v.equipement_code, v.perimetre, v.prestataire_id, pr.nom as prestataire_nom, v.periodicite_mois,
+      v.equipement_id, v.equipement_code, v.perimetre, v.prestataire_id, pr.nom as prestataire_nom, coalesce(pr.mode_intervention = 'devis', false) as prestataire_sur_devis,
+      v.periodicite_mois,
       v.dernier_controle, v.prochaine_echeance, v.statut_echeance, v.nb_reserves_ouvertes, v.nb_reserves_levees
     from public.v_plans_controle_echeance v
     join public.familles_controle f on f.id = v.famille_id
@@ -46,6 +48,7 @@ export type PlanDetail = {
   perimetre_libelle: string | null;
   prestataire_id: string | null;
   prestataire_nom: string | null;
+  prestataire_mode: "contrat" | "devis" | null;
   contrat_id: string | null;
   contrat_objet: string | null;
   periodicite_mois_surcharge: number | null;
@@ -61,7 +64,7 @@ export async function lirePlan(tx: Tx, id: string): Promise<PlanDetail | undefin
   const [plan] = await tx<PlanDetail[]>`
     select p.id, p.type_controle_id, t.libelle as type_libelle, t.periodicite_mois as type_periodicite_mois,
       t.reference_texte, t.caractere, p.equipement_id, e.code as equipement_code, e.libelle as equipement_libelle,
-      p.perimetre_libelle, p.prestataire_id, pr.nom as prestataire_nom, p.contrat_id, c.objet as contrat_objet,
+      p.perimetre_libelle, p.prestataire_id, pr.nom as prestataire_nom, pr.mode_intervention as prestataire_mode, p.contrat_id, c.objet as contrat_objet,
       p.periodicite_mois_surcharge, p.actif, p.archive_le,
       v.statut_echeance, v.dernier_controle, v.prochaine_echeance
     from public.plans_controle p

@@ -47,7 +47,9 @@ export async function executerRappels(): Promise<BilanRappels> {
     const [plans, contrats, reserves, envoyes, interventions, chantiers, releves] = await Promise.all([
       tx<EntreeRappels["plans"]>`
         select plan_controle_id as id, type_libelle as libelle, coalesce(equipement_code, perimetre) as perimetre,
-          prochaine_echeance as echeance, statut_echeance as statut
+          prochaine_echeance as echeance, statut_echeance as statut,
+          coalesce((select pr.mode_intervention = 'devis' from public.prestataires pr where pr.id = prestataire_id), false)
+            as sur_devis
         from public.v_plans_controle_echeance`,
       tx<EntreeRappels["contrats"]>`
         select c.id, c.objet, p.nom as prestataire, c.date_fin, c.preavis_jours

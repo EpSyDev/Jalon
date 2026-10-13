@@ -30,6 +30,8 @@ export type EntreeRappels = {
     perimetre: string | null;
     echeance: string | null;
     statut: "jamais_controle" | "en_retard" | "a_echeance" | "a_jour";
+    /** Prestataire intervenant sur devis : le rappel invite à demander le devis (il faut de l'avance). */
+    sur_devis?: boolean;
   }[];
   contrats: { id: string; objet: string; prestataire: string; date_fin: string | null; preavis_jours: number | null }[];
   /** Pas de description : texte libre, jamais repris dans un mail. */
@@ -109,7 +111,13 @@ export function calculerRappels(e: EntreeRappels): ResultatRappels {
         seuil,
         echeance: p.echeance,
         libelle: p.libelle,
-        detail: `${p.perimetre ? `${p.perimetre} · ` : ""}échéance le ${fr(p.echeance)}`,
+        detail: [
+          p.perimetre,
+          `échéance le ${fr(p.echeance)}`,
+          p.sur_devis && "prestataire sur devis : pensez à demander le devis",
+        ]
+          .filter(Boolean)
+          .join(" · "),
         lien: `/controles/plans/${p.id}`,
       });
     }

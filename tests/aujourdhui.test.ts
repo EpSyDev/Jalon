@@ -181,3 +181,21 @@ describe("tournée", () => {
     ]);
   });
 });
+
+describe("jalon du jour : prestataire sur devis", () => {
+  it("un contrôle en retard confié à un prestataire sur devis rappelle de demander le devis", () => {
+    const j = jalonDuJour(
+      entree({
+        plans: [
+          plan("a", {
+            statut_echeance: "en_retard",
+            prochaine_echeance: "2026-09-01",
+            equipement_code: "ASC-1",
+            prestataire_sur_devis: true,
+          }),
+        ],
+      }),
+    );
+    expect(j?.detail).toBe("ASC-1 — Site · prestataire sur devis : demander le devis");
+  });
+});

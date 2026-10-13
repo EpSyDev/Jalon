@@ -187,3 +187,13 @@ describe("récapitulatif : retards d'interventions, de chantiers et sauvegarde",
     expect(calculerRappels(base({ chantiers: [], alerteSauvegarde: "x" })).recap).toBeNull();
   });
 });
+
+describe("prestataire sur devis", () => {
+  it("le rappel invite à demander le devis, sans changer les seuils ni la clé", () => {
+    const sansDevis = calculerRappels(base({ plans: [plan("a", "2026-10-10")] })).rappels[0];
+    const avecDevis = calculerRappels(base({ plans: [{ ...plan("a", "2026-10-10"), sur_devis: true }] })).rappels[0];
+    expect(avecDevis.detail).toBe("Site · échéance le 10/10/2026 · prestataire sur devis : pensez à demander le devis");
+    expect(sansDevis.detail).toBe("Site · échéance le 10/10/2026");
+    expect(cleRappel(avecDevis)).toBe(cleRappel(sansDevis));
+  });
+});

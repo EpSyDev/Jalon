@@ -92,7 +92,10 @@ export default async function PageFichePlan({ params }: PageProps<"/controles/pl
           {periodicite} mois{plan.periodicite_mois_surcharge !== null && " (spécifique à ce plan)"}
         </Info>
         <Info libelle="Caractère">{LIBELLES_CARACTERE[plan.caractere]}</Info>
-        <Info libelle="Prestataire">{plan.prestataire_nom ?? "—"}</Info>
+        <Info libelle="Prestataire">
+          {plan.prestataire_nom ?? "—"}
+          {plan.prestataire_mode === "devis" && " · sur devis : à demander à l'avance"}
+        </Info>
         <Info libelle="Contrat">{plan.contrat_objet ?? "—"}</Info>
         <Info libelle="Référence du texte">{plan.reference_texte ?? "—"}</Info>
       </dl>
