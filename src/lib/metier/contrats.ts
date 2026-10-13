@@ -30,8 +30,16 @@ export function alerteContrat(
 
 // --- Saisie : prestataires et contrats ------------------------------------------
 
+export const MODES_INTERVENTION = ["contrat", "devis"] as const;
+export const LIBELLES_MODE_INTERVENTION = { contrat: "Sous contrat", devis: "Sur devis" } as const;
+
 export const schemaPrestataire = z.object({
   nom: z.string().trim().min(1, "obligatoire").max(200, "200 caractères maximum"),
+  mode_intervention: z
+    .union([z.enum(MODES_INTERVENTION), z.literal("")])
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .default(null),
   contact_nom: texteOptionnel(200),
   email: z
     .union([z.email("adresse mail invalide").max(254), z.literal("")])

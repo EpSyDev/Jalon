@@ -4,6 +4,7 @@ import type { Tx } from "@/lib/db";
 export type Prestataire = {
   id: string;
   nom: string;
+  mode_intervention: "contrat" | "devis" | null;
   contact_nom: string | null;
   email: string | null;
   telephone: string | null;
@@ -14,7 +15,7 @@ export type Prestataire = {
 };
 
 const SELECT_PRESTATAIRE = (tx: Tx) => tx`
-  select p.id, p.nom, p.contact_nom, p.email, p.telephone, p.notes,
+  select p.id, p.nom, p.mode_intervention, p.contact_nom, p.email, p.telephone, p.notes,
     (select count(*)::int from public.contrats c where c.prestataire_id = p.id and c.archive_le is null) as nb_contrats,
     (select count(*)::int from public.plans_controle pl where pl.prestataire_id = p.id and pl.archive_le is null) as nb_plans,
     (select count(*)::int from public.interventions i where i.prestataire_id = p.id and i.archive_le is null

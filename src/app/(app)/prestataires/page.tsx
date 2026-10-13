@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ChevronRight, Plus } from "lucide-react";
 import { LienBouton } from "@/components/lien-bouton";
+import { Badge } from "@/components/ui/badge";
 import { requete } from "@/lib/auth";
+import { LIBELLES_MODE_INTERVENTION } from "@/lib/metier/contrats";
 import { listerPrestataires } from "@/lib/requetes/contrats";
 
 export const metadata = { title: "Prestataires — Jalon" };
@@ -41,13 +43,20 @@ export default async function PagePrestataires() {
                 className="flex items-center gap-3 rounded-lg border p-4 hover:bg-muted/50"
               >
                 <div className="grid min-w-0 flex-1 gap-1">
-                  <div className="font-medium">{p.nom}</div>
+                  <div className="flex flex-wrap items-center gap-2 font-medium">
+                    {p.nom}
+                    {p.mode_intervention && (
+                      <Badge variant={p.mode_intervention === "contrat" ? "secondary" : "outline"}>
+                        {LIBELLES_MODE_INTERVENTION[p.mode_intervention]}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="truncate text-sm text-muted-foreground">
                     {[p.contact_nom, p.telephone].filter(Boolean).join(" · ") || "Coordonnées à compléter"}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {[
-                      compter(p.nb_contrats, "contrat"),
+                      (p.nb_contrats > 0 || p.mode_intervention !== "devis") && compter(p.nb_contrats, "contrat"),
                       compter(p.nb_plans, "contrôle"),
                       p.nb_interventions_ouvertes > 0 &&
                         `${p.nb_interventions_ouvertes} intervention${p.nb_interventions_ouvertes > 1 ? "s ouvertes" : " ouverte"}`,

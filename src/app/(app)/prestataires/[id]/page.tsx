@@ -5,9 +5,10 @@ import { z } from "zod";
 import { BadgeAlerteContrat } from "@/components/alerte-contrat";
 import { BadgeStatut } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
+import { Badge } from "@/components/ui/badge";
 import { requete } from "@/lib/auth";
 import { formaterDate } from "@/lib/format";
-import { alerteContrat } from "@/lib/metier/contrats";
+import { alerteContrat, LIBELLES_MODE_INTERVENTION } from "@/lib/metier/contrats";
 import { aujourdhuiParis, type StatutEcheance } from "@/lib/metier/echeance";
 import { lirePrestataire, listerContrats, plansDuPrestataire, seuilAEcheance } from "@/lib/requetes/contrats";
 
@@ -39,6 +40,13 @@ export default async function PagePrestataire({ params }: PageProps<"/prestatair
         </Link>
         <h1 className="text-2xl font-semibold">{p.nom}</h1>
         {p.contact_nom && <p className="text-muted-foreground">{p.contact_nom}</p>}
+        {p.mode_intervention && (
+          <div>
+            <Badge variant={p.mode_intervention === "contrat" ? "secondary" : "outline"} className="h-6 px-3 text-sm">
+              {LIBELLES_MODE_INTERVENTION[p.mode_intervention]}
+            </Badge>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-2 sm:grid-cols-3">
@@ -91,7 +99,11 @@ export default async function PagePrestataire({ params }: PageProps<"/prestatair
             </Link>
           )}
         </div>
-        {contrats.length === 0 && <p className="text-sm text-muted-foreground">Aucun contrat.</p>}
+        {contrats.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            {p.mode_intervention === "devis" ? "Intervient sur devis : aucun contrat nécessaire." : "Aucun contrat."}
+          </p>
+        )}
         <ul className="grid gap-2">
           {contrats.map((c) => (
             <li key={c.id}>

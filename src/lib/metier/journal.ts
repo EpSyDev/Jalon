@@ -86,6 +86,7 @@ const LIBELLES_CHAMP: Record<string, string> = {
   niveau: "Niveau",
   local: "Local",
   contact_nom: "Contact",
+  mode_intervention: "Intervention",
   email: "Mail",
   telephone: "Téléphone",
   organisation: "Organisation",
@@ -122,6 +123,8 @@ const LIBELLES_CHAMP: Record<string, string> = {
 
 /** Valeurs codées (statuts, résultats, rôles…) : libellé affiché. */
 const VALEURS: Record<string, string> = {
+  contrat: "Sous contrat",
+  devis: "Sur devis",
   en_service: "En service",
   indisponible: "Indisponible",
   reparation_interne: "En réparation (interne)",

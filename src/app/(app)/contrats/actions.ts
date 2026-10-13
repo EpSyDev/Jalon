@@ -13,6 +13,7 @@ const LIBELLES: Record<string, string> = {
   telephone: "Téléphone",
   notes: "Notes",
   prestataire_id: "Prestataire",
+  mode_intervention: "Intervention",
   objet: "Objet",
   reference: "Référence",
   date_debut: "Date de début",

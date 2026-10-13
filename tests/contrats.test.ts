@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { alerteContrat, limitePreavis } from "@/lib/metier/contrats";
+import { alerteContrat, limitePreavis, schemaPrestataire } from "@/lib/metier/contrats";
 
 const AUJ = "2026-10-06";
 
@@ -75,5 +75,15 @@ describe("saisie des contrats et prestataires", async () => {
     });
     expect(schemaPrestataire.safeParse({ nom: "X", email: "pas-un-mail" }).success).toBe(false);
     expect(schemaPrestataire.safeParse({ nom: "X", telephone: "appeler Paul" }).success).toBe(false);
+  });
+});
+
+describe("mode d'intervention d'un prestataire", () => {
+  it("sous contrat, sur devis ou non précisé ; toute autre valeur refusée", () => {
+    expect(schemaPrestataire.parse({ nom: "A", mode_intervention: "devis" }).mode_intervention).toBe("devis");
+    expect(schemaPrestataire.parse({ nom: "A", mode_intervention: "contrat" }).mode_intervention).toBe("contrat");
+    expect(schemaPrestataire.parse({ nom: "A", mode_intervention: "" }).mode_intervention).toBeNull();
+    expect(schemaPrestataire.parse({ nom: "A" }).mode_intervention).toBeNull();
+    expect(schemaPrestataire.safeParse({ nom: "A", mode_intervention: "gratuit" }).success).toBe(false);
   });
 });
