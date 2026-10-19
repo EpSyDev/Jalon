@@ -47,25 +47,52 @@ const TON = {
   neutre: "border-l-border",
 } as const;
 
+function Groupe({ titre, nombre, children }: { titre: string; nombre: number; children: ReactNode }) {
+  if (nombre === 0) return null;
+  return (
+    <div className="grid gap-4">
+      <h2 className="flex items-baseline gap-2 border-b-2 border-primary/40 pb-1 text-xl font-semibold">
+        {titre}
+        <span className="text-sm font-normal text-muted-foreground">{nombre}</span>
+      </h2>
+      {children}
+    </div>
+  );
+}
+
 function Section({
   titre,
   nombre,
   ton,
+  replie = false,
   children,
 }: {
   titre: string;
   nombre: number;
   ton: keyof typeof TON;
+  /** Liste longue et secondaire : repliée par défaut. */
+  replie?: boolean;
   children: ReactNode;
 }) {
   if (nombre === 0) return null;
+  const liste = <ul className={cn("grid gap-2 border-l-4 pl-3", TON[ton])}>{children}</ul>;
+  if (replie) {
+    return (
+      <details className="rounded-lg border p-3">
+        <summary className="min-h-11 cursor-pointer py-2 font-medium">
+          {titre} <span className="text-sm font-normal text-muted-foreground">{nombre} · afficher</span>
+        </summary>
+        <div className="pt-2">{liste}</div>
+      </details>
+    );
+  }
   return (
     <section className="grid gap-2">
-      <h2 className="flex items-baseline gap-2 text-lg font-semibold">
+      <h3 className="flex items-baseline gap-2 text-base font-semibold">
         {titre}
         <span className="text-sm font-normal text-muted-foreground">{nombre}</span>
-      </h2>
-      <ul className={cn("grid gap-2 border-l-4 pl-3", TON[ton])}>{children}</ul>
+      </h3>
+      {liste}
     </section>
   );
 }
@@ -142,9 +169,9 @@ function CarteJalon({ jalon }: { jalon: JalonDuJour }) {
 function ListeRegroupements({ groupes }: { groupes: Regroupement[] }) {
   return (
     <section className="grid gap-2">
-      <h2 className="flex items-baseline gap-2 text-lg font-semibold">
+      <h3 className="flex items-baseline gap-2 text-base font-semibold">
         Une seule visite ?<span className="text-sm font-normal text-muted-foreground">{groupes.length}</span>
-      </h2>
+      </h3>
       <p className="text-sm text-muted-foreground">
         Plusieurs contrôles du même prestataire tombent dans la même période : à grouper en une intervention.
       </p>
@@ -337,9 +364,9 @@ export default async function PageAujourdhui() {
         </p>
       )}
 
-      <section className="grid gap-2" aria-labelledby="titre-taches">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 id="titre-taches" className="flex items-baseline gap-2 text-lg font-semibold">
+      <section className="grid gap-3" aria-labelledby="titre-taches">
+        <div className="flex items-baseline justify-between gap-2 border-b-2 border-primary/40 pb-1">
+          <h2 id="titre-taches" className="flex items-baseline gap-2 text-xl font-semibold">
             Tâches en cours
             <span className="text-sm font-normal text-muted-foreground">{taches.length}</span>
           </h2>
@@ -370,106 +397,120 @@ export default async function PageAujourdhui() {
         )}
       </section>
 
-      <Section titre="Contrôles en retard" nombre={enRetard.length} ton="rouge">
-        {enRetard.map((p) => (
-          <LignePlan
-            key={p.plan_controle_id}
-            plan={p}
-            peutEcrire={peutEcrire}
-            detail={`Échéance dépassée le ${formaterDate(p.prochaine_echeance)}`}
-          />
-        ))}
-      </Section>
+      <Groupe titre="Contrôles" nombre={enRetard.length + jamais.length + aEcheance.length}>
+        <Section titre="Contrôles en retard" nombre={enRetard.length} ton="rouge">
+          {enRetard.map((p) => (
+            <LignePlan
+              key={p.plan_controle_id}
+              plan={p}
+              peutEcrire={peutEcrire}
+              detail={`Échéance dépassée le ${formaterDate(p.prochaine_echeance)}`}
+            />
+          ))}
+        </Section>
 
-      <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
-        {interventions.map((i) => (
-          <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
-        ))}
-      </Section>
+        <Section titre="Jamais contrôlés" nombre={jamais.length} ton="violet">
+          {jamais.map((p) => (
+            <LignePlan
+              key={p.plan_controle_id}
+              plan={p}
+              peutEcrire={peutEcrire}
+              detail="Saisir le dernier contrôle connu"
+            />
+          ))}
+        </Section>
 
-      <Section titre="Valeurs hors seuil" nombre={relevesHorsSeuil.length} ton="rouge">
-        {relevesHorsSeuil.map((p) => (
-          <LigneReleve key={p.id} p={p} />
-        ))}
-      </Section>
+        <Section titre={`Échéances à ${seuilJours} jours`} nombre={aEcheance.length} ton="ambre">
+          {aEcheance.map((p) => (
+            <LignePlan
+              key={p.plan_controle_id}
+              plan={p}
+              peutEcrire={peutEcrire}
+              detail={`Échéance le ${formaterDate(p.prochaine_echeance)}`}
+            />
+          ))}
+        </Section>
 
-      <Section titre="Relevés à faire" nombre={relevesEnAttente.length} ton="ambre">
-        {relevesEnAttente.map((p) => (
-          <LigneReleve key={p.id} p={p} />
-        ))}
-      </Section>
+        {groupes.length > 0 && <ListeRegroupements groupes={groupes} />}
+      </Groupe>
 
-      <Section titre="Interventions en retard" nombre={interventionsEnRetard.length} ton="rouge">
-        {interventionsEnRetard.map((i) => (
-          <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
-        ))}
-      </Section>
+      <Groupe
+        titre="Interventions et chantiers"
+        nombre={interventions.length + interventionsEnRetard.length + chantiersEnRetard.length}
+      >
+        <Section titre="Interventions urgentes" nombre={interventions.length} ton="rouge">
+          {interventions.map((i) => (
+            <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
+          ))}
+        </Section>
 
-      <Section titre="Chantiers en retard" nombre={chantiersEnRetard.length} ton="ambre">
-        {chantiersEnRetard.map(({ chantier: c, retard }) => (
-          <li key={c.id}>
-            <Link href={`/chantiers/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
-              <span className="font-medium">{c.titre}</span>
-              <span className="text-sm text-muted-foreground">
-                {[LIBELLES_STATUT_CHANTIER[c.statut], c.responsable_nom].filter(Boolean).join(" · ")}
-              </span>
-              <span className="text-sm font-medium text-destructive">
-                {messageRetardChantier(c, retard, aujourdhui)}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </Section>
+        <Section titre="Interventions en retard" nombre={interventionsEnRetard.length} ton="rouge">
+          {interventionsEnRetard.map((i) => (
+            <LigneIntervention key={i.id} i={i} aujourdhui={aujourdhui} />
+          ))}
+        </Section>
 
-      <Section titre="Réserves à lever en retard" nombre={reservesDepassees.length} ton="rouge">
-        {reservesDepassees.map((r) => (
-          <LigneReserve key={r.id} reserve={r} aujourdhui={aujourdhui} />
-        ))}
-      </Section>
+        <Section titre="Chantiers en retard" nombre={chantiersEnRetard.length} ton="ambre">
+          {chantiersEnRetard.map(({ chantier: c, retard }) => (
+            <li key={c.id}>
+              <Link href={`/chantiers/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+                <span className="font-medium">{c.titre}</span>
+                <span className="text-sm text-muted-foreground">
+                  {[LIBELLES_STATUT_CHANTIER[c.statut], c.responsable_nom].filter(Boolean).join(" · ")}
+                </span>
+                <span className="text-sm font-medium text-destructive">
+                  {messageRetardChantier(c, retard, aujourdhui)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </Section>
+      </Groupe>
 
-      <Section titre="Contrats : décision à prendre" nombre={contratsAlerte.length} ton="ambre">
-        {contratsAlerte.map(({ contrat: c, alerte }) => (
-          <li key={c.id}>
-            <Link href={`/contrats/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
-              <span className="font-medium">{c.objet}</span>
-              <span className="text-sm text-muted-foreground">{c.prestataire_nom}</span>
-              <span className={cn("text-sm", alerte !== "a_decider" && "font-medium text-destructive")}>
-                {messageAlerteContrat(c, alerte)}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </Section>
+      <Groupe titre="Relevés" nombre={relevesHorsSeuil.length + relevesEnAttente.length}>
+        <Section titre="Valeurs hors seuil" nombre={relevesHorsSeuil.length} ton="rouge">
+          {relevesHorsSeuil.map((p) => (
+            <LigneReleve key={p.id} p={p} />
+          ))}
+        </Section>
 
-      <Section titre="Jamais contrôlés" nombre={jamais.length} ton="violet">
-        {jamais.map((p) => (
-          <LignePlan
-            key={p.plan_controle_id}
-            plan={p}
-            peutEcrire={peutEcrire}
-            detail="Saisir le dernier contrôle connu"
-          />
-        ))}
-      </Section>
+        <Section titre="Relevés à faire" nombre={relevesEnAttente.length} ton="ambre">
+          {relevesEnAttente.map((p) => (
+            <LigneReleve key={p.id} p={p} />
+          ))}
+        </Section>
+      </Groupe>
 
-      <Section titre={`Échéances à ${seuilJours} jours`} nombre={aEcheance.length} ton="ambre">
-        {aEcheance.map((p) => (
-          <LignePlan
-            key={p.plan_controle_id}
-            plan={p}
-            peutEcrire={peutEcrire}
-            detail={`Échéance le ${formaterDate(p.prochaine_echeance)}`}
-          />
-        ))}
-      </Section>
+      <Groupe
+        titre="Réserves et contrats"
+        nombre={reservesDepassees.length + contratsAlerte.length + autresReserves.length}
+      >
+        <Section titre="Réserves à lever en retard" nombre={reservesDepassees.length} ton="rouge">
+          {reservesDepassees.map((r) => (
+            <LigneReserve key={r.id} reserve={r} aujourdhui={aujourdhui} />
+          ))}
+        </Section>
 
-      {groupes.length > 0 && <ListeRegroupements groupes={groupes} />}
+        <Section titre="Contrats : décision à prendre" nombre={contratsAlerte.length} ton="ambre">
+          {contratsAlerte.map(({ contrat: c, alerte }) => (
+            <li key={c.id}>
+              <Link href={`/contrats/${c.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+                <span className="font-medium">{c.objet}</span>
+                <span className="text-sm text-muted-foreground">{c.prestataire_nom}</span>
+                <span className={cn("text-sm", alerte !== "a_decider" && "font-medium text-destructive")}>
+                  {messageAlerteContrat(c, alerte)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </Section>
 
-      <Section titre="Autres réserves ouvertes" nombre={autresReserves.length} ton="neutre">
-        {autresReserves.map((r) => (
-          <LigneReserve key={r.id} reserve={r} aujourdhui={aujourdhui} />
-        ))}
-      </Section>
+        <Section titre="Autres réserves ouvertes" nombre={autresReserves.length} ton="neutre" replie>
+          {autresReserves.map((r) => (
+            <LigneReserve key={r.id} reserve={r} aujourdhui={aujourdhui} />
+          ))}
+        </Section>
+      </Groupe>
 
       {nbAVerifier > 0 && (
         <Link
