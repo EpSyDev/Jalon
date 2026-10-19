@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { fr } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
-import { ArrowRight, CircleCheck, Users } from "lucide-react";
+import { ArrowRight, CircleCheck, ClipboardCheck, Gauge, ListTodo, ShieldAlert, Users, Wrench } from "lucide-react";
 import { messageAlerteContrat } from "@/components/alerte-contrat";
 import { BadgeReserves } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
@@ -47,16 +47,70 @@ const TON = {
   neutre: "border-l-border",
 } as const;
 
-function Groupe({ titre, nombre, children }: { titre: string; nombre: number; children: ReactNode }) {
-  if (nombre === 0) return null;
+const THEMES = {
+  taches: {
+    icone: ListTodo,
+    cadre: "border-sky-600/40 bg-sky-600/[0.04]",
+    entete: "bg-sky-600/10 text-sky-900 dark:text-sky-200",
+    puce: "bg-sky-600 text-white",
+  },
+  controles: {
+    icone: ClipboardCheck,
+    cadre: "border-emerald-600/40 bg-emerald-600/[0.04]",
+    entete: "bg-emerald-600/10 text-emerald-900 dark:text-emerald-200",
+    puce: "bg-emerald-600 text-white",
+  },
+  interventions: {
+    icone: Wrench,
+    cadre: "border-orange-600/40 bg-orange-600/[0.04]",
+    entete: "bg-orange-600/10 text-orange-900 dark:text-orange-200",
+    puce: "bg-orange-600 text-white",
+  },
+  releves: {
+    icone: Gauge,
+    cadre: "border-cyan-600/40 bg-cyan-600/[0.04]",
+    entete: "bg-cyan-600/10 text-cyan-900 dark:text-cyan-200",
+    puce: "bg-cyan-700 text-white",
+  },
+  reserves: {
+    icone: ShieldAlert,
+    cadre: "border-violet-600/40 bg-violet-600/[0.04]",
+    entete: "bg-violet-600/10 text-violet-900 dark:text-violet-200",
+    puce: "bg-violet-600 text-white",
+  },
+} as const;
+
+/** Encart d'un thème : en-tête coloré (icône, titre, compteur), contenu dessous. Masqué si vide, sauf `toujours`. */
+function Groupe({
+  theme,
+  titre,
+  nombre,
+  toujours = false,
+  action,
+  children,
+}: {
+  theme: keyof typeof THEMES;
+  titre: string;
+  nombre: number;
+  toujours?: boolean;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  if (nombre === 0 && !toujours) return null;
+  const t = THEMES[theme];
+  const Icone = t.icone;
   return (
-    <div className="grid gap-4">
-      <h2 className="flex items-baseline gap-2 border-b-2 border-primary/40 pb-1 text-xl font-semibold">
-        {titre}
-        <span className="text-sm font-normal text-muted-foreground">{nombre}</span>
-      </h2>
-      {children}
-    </div>
+    <section aria-label={titre} className={cn("grid gap-4 overflow-hidden rounded-xl border pb-4", t.cadre)}>
+      <div className={cn("flex items-center justify-between gap-3 px-4 py-3", t.entete)}>
+        <h2 className="flex items-center gap-2 text-xl font-semibold">
+          <Icone className="size-5" aria-hidden />
+          {titre}
+          <span className={cn("rounded-full px-2 py-0.5 text-sm font-medium tabular-nums", t.puce)}>{nombre}</span>
+        </h2>
+        {action}
+      </div>
+      <div className="grid gap-4 px-4">{children}</div>
+    </section>
   );
 }
 
@@ -364,16 +418,18 @@ export default async function PageAujourdhui() {
         </p>
       )}
 
-      <section className="grid gap-3" aria-labelledby="titre-taches">
-        <div className="flex items-baseline justify-between gap-2 border-b-2 border-primary/40 pb-1">
-          <h2 id="titre-taches" className="flex items-baseline gap-2 text-xl font-semibold">
-            Tâches en cours
-            <span className="text-sm font-normal text-muted-foreground">{taches.length}</span>
-          </h2>
-          <Link href="/taches" className="text-sm underline">
+      <Groupe
+        theme="taches"
+        titre="Tâches en cours"
+        nombre={taches.length}
+        toujours
+        action={
+          <Link href="/taches" className="text-sm font-medium underline">
             {peutEcrire ? "Ajouter / voir tout" : "Voir tout"}
           </Link>
-        </div>
+        }
+      >
+        {taches.length === 0 && <p className="text-sm text-muted-foreground">Aucune tâche en cours.</p>}
         {taches.length > 0 && (
           <ul className="grid gap-2">
             {taches.map((t) => {
@@ -395,9 +451,9 @@ export default async function PageAujourdhui() {
             })}
           </ul>
         )}
-      </section>
+      </Groupe>
 
-      <Groupe titre="Contrôles" nombre={enRetard.length + jamais.length + aEcheance.length}>
+      <Groupe theme="controles" titre="Contrôles" nombre={enRetard.length + jamais.length + aEcheance.length}>
         <Section titre="Contrôles en retard" nombre={enRetard.length} ton="rouge">
           {enRetard.map((p) => (
             <LignePlan
@@ -435,6 +491,7 @@ export default async function PageAujourdhui() {
       </Groupe>
 
       <Groupe
+        theme="interventions"
         titre="Interventions et chantiers"
         nombre={interventions.length + interventionsEnRetard.length + chantiersEnRetard.length}
       >
@@ -467,7 +524,7 @@ export default async function PageAujourdhui() {
         </Section>
       </Groupe>
 
-      <Groupe titre="Relevés" nombre={relevesHorsSeuil.length + relevesEnAttente.length}>
+      <Groupe theme="releves" titre="Relevés" nombre={relevesHorsSeuil.length + relevesEnAttente.length}>
         <Section titre="Valeurs hors seuil" nombre={relevesHorsSeuil.length} ton="rouge">
           {relevesHorsSeuil.map((p) => (
             <LigneReleve key={p.id} p={p} />
@@ -482,6 +539,7 @@ export default async function PageAujourdhui() {
       </Groupe>
 
       <Groupe
+        theme="reserves"
         titre="Réserves et contrats"
         nombre={reservesDepassees.length + contratsAlerte.length + autresReserves.length}
       >
