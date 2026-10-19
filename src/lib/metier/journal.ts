@@ -27,6 +27,7 @@ export const LIBELLES_TABLE: Record<string, string> = {
   reserves: "Réserve",
   prestataires: "Prestataire",
   contacts: "Contact",
+  taches: "Tâche",
   points_releve: "Point de relevé",
   releves: "Relevé",
   contrats: "Contrat",
@@ -127,6 +128,9 @@ const LIBELLES_CHAMP: Record<string, string> = {
   periodicite_jours: "Périodicité (jours)",
   date_releve: "Date du relevé",
   point_id: "Point de relevé",
+  echeance: "Échéance",
+  resolue_le: "Résolue le",
+  resolue_par: "Résolue par",
 };
 
 /** Valeurs codées (statuts, résultats, rôles…) : libellé affiché. */
@@ -279,6 +283,8 @@ export function lienEnregistrement(
       return `/releves/${id}`;
     case "releves":
       return champ("point_id") && `/releves/${champ("point_id")}`;
+    case "taches":
+      return "/taches";
     case "contacts":
       return `/contacts/${id}`;
     case "contrats":

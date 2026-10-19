@@ -33,6 +33,9 @@ import { etatSauvegarde } from "@/lib/requetes/sauvegarde-etat";
 import { formaterValeur, libelleSeuils, LIBELLES_STATUT_RELEVE } from "@/lib/metier/releves";
 import { avecEtat, type PointAvecEtat } from "@/lib/requetes/releves";
 import { verifications } from "@/lib/requetes/verifications";
+import { retardTache } from "@/lib/metier/taches";
+import { tachesOuvertes } from "@/lib/requetes/taches";
+import { BoutonResoudre } from "./taches/bouton-tache";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Aujourd'hui — Jalon" };
@@ -239,6 +242,7 @@ export default async function PageAujourdhui() {
     seuilJours,
     destinataires,
     aVerifier,
+    taches,
     sauvegarde,
   } = await requete(async (tx, u) => {
     const donnees = await donneesAujourdhui(tx);
@@ -246,6 +250,7 @@ export default async function PageAujourdhui() {
       utilisateur: u,
       ...donnees,
       aVerifier: await verifications(tx, donnees.plans),
+      taches: await tachesOuvertes(tx),
       sauvegarde: u.role === "admin" ? await etatSauvegarde(tx, aujourdhui) : null,
     };
   });
@@ -267,6 +272,8 @@ export default async function PageAujourdhui() {
     .map((c) => ({ chantier: c, retard: retardChantier(c, aujourdhui) }))
     .filter((x): x is { chantier: ChantierSuivi; retard: RetardChantier } => x.retard !== null);
 
+  const tachesEnRetard = taches.filter((t) => retardTache(t.echeance, aujourdhui) !== null);
+
   const relevesEtat = points.map((p) => avecEtat(p, aujourdhui));
   const relevesHorsSeuil = relevesEtat.filter((p) => p.hors_seuil !== null);
   const relevesEnAttente = relevesEtat.filter((p) => p.statut !== "a_jour");
@@ -281,7 +288,8 @@ export default async function PageAujourdhui() {
     interventions.length +
     interventionsEnRetard.length +
     chantiersEnRetard.length +
-    contratsAlerte.length;
+    contratsAlerte.length +
+    tachesEnRetard.length;
   const rienDUrgent = aTraiter === 0;
   const jalon = jalonDuJour({ aujourdhui, plans, reserves, interventions, contrats: contratsAlerte });
   const groupes = regroupements(plans, aujourdhui, seuilJours);
@@ -328,6 +336,39 @@ export default async function PageAujourdhui() {
           Rien à signaler aujourd&apos;hui.
         </p>
       )}
+
+      <section className="grid gap-2" aria-labelledby="titre-taches">
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 id="titre-taches" className="flex items-baseline gap-2 text-lg font-semibold">
+            Tâches en cours
+            <span className="text-sm font-normal text-muted-foreground">{taches.length}</span>
+          </h2>
+          <Link href="/taches" className="text-sm underline">
+            {peutEcrire ? "Ajouter / voir tout" : "Voir tout"}
+          </Link>
+        </div>
+        {taches.length > 0 && (
+          <ul className="grid gap-2">
+            {taches.map((t) => {
+              const retard = retardTache(t.echeance, aujourdhui);
+              return (
+                <li key={t.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="font-medium">{t.libelle}</span>
+                    {t.echeance && (
+                      <span className={cn("text-sm text-muted-foreground", retard && "font-medium text-destructive")}>
+                        Pour le {formaterDate(t.echeance)}
+                        {retard && ` · en retard de ${retard} j`}
+                      </span>
+                    )}
+                  </span>
+                  {peutEcrire && <BoutonResoudre id={t.id} />}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <Section titre="Contrôles en retard" nombre={enRetard.length} ton="rouge">
         {enRetard.map((p) => (

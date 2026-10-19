@@ -11,6 +11,7 @@ export const VERSION_FORMAT = 1;
 /** Ordre compatible avec les clés étrangères. Toute nouvelle table doit être ajoutée ici (test dédié). */
 export const TABLES = [
   "profils",
+  "taches",
   "parametres",
   "localisations",
   "prestataires",
