@@ -28,6 +28,9 @@ export const LIBELLES_TABLE: Record<string, string> = {
   prestataires: "Prestataire",
   contacts: "Contact",
   taches: "Tâche",
+  agents: "Agent",
+  types_formation: "Type de formation",
+  formations: "Formation suivie",
   points_releve: "Point de relevé",
   releves: "Relevé",
   contrats: "Contrat",
@@ -129,6 +132,12 @@ const LIBELLES_CHAMP: Record<string, string> = {
   date_releve: "Date du relevé",
   point_id: "Point de relevé",
   echeance: "Échéance",
+  date_formation: "Date de la formation",
+  duree_heures: "Durée (heures)",
+  organisme: "Organisme",
+  validite_mois: "Validité (mois)",
+  agent_id: "Agent",
+  type_formation_id: "Formation",
   resolue_le: "Résolue le",
   resolue_par: "Résolue par",
 };
@@ -283,6 +292,11 @@ export function lienEnregistrement(
       return `/releves/${id}`;
     case "releves":
       return champ("point_id") && `/releves/${champ("point_id")}`;
+    case "formations":
+      return `/formations/${id}`;
+    case "agents":
+    case "types_formation":
+      return "/formations/referentiel";
     case "taches":
       return "/taches";
     case "contacts":

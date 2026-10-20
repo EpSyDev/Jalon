@@ -2,7 +2,17 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { fr } from "date-fns/locale";
 import { formatInTimeZone } from "date-fns-tz";
-import { ArrowRight, CircleCheck, ClipboardCheck, Gauge, ListTodo, ShieldAlert, Users, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  CircleCheck,
+  ClipboardCheck,
+  Gauge,
+  GraduationCap,
+  ListTodo,
+  ShieldAlert,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { messageAlerteContrat } from "@/components/alerte-contrat";
 import { BadgeReserves } from "@/components/badges";
 import { LienBouton } from "@/components/lien-bouton";
@@ -35,6 +45,8 @@ import { avecEtat, type PointAvecEtat } from "@/lib/requetes/releves";
 import { verifications } from "@/lib/requetes/verifications";
 import { retardTache } from "@/lib/metier/taches";
 import { tachesOuvertes } from "@/lib/requetes/taches";
+import { formationsActuelles } from "@/lib/requetes/formations";
+import { joursAvantEcheance, statutFormation } from "@/lib/metier/formations";
 import { BoutonResoudre } from "./taches/bouton-tache";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +89,12 @@ const THEMES = {
     cadre: "border-violet-600/40 bg-violet-600/[0.04]",
     entete: "bg-violet-600/10 text-violet-900 dark:text-violet-200",
     puce: "bg-violet-600 text-white",
+  },
+  formations: {
+    icone: GraduationCap,
+    cadre: "border-rose-600/40 bg-rose-600/[0.04]",
+    entete: "bg-rose-600/10 text-rose-900 dark:text-rose-200",
+    puce: "bg-rose-600 text-white",
   },
 } as const;
 
@@ -324,6 +342,7 @@ export default async function PageAujourdhui() {
     destinataires,
     aVerifier,
     taches,
+    formations,
     sauvegarde,
   } = await requete(async (tx, u) => {
     const donnees = await donneesAujourdhui(tx);
@@ -332,6 +351,7 @@ export default async function PageAujourdhui() {
       ...donnees,
       aVerifier: await verifications(tx, donnees.plans),
       taches: await tachesOuvertes(tx),
+      formations: await formationsActuelles(tx),
       sauvegarde: u.role === "admin" ? await etatSauvegarde(tx, aujourdhui) : null,
     };
   });
@@ -354,6 +374,9 @@ export default async function PageAujourdhui() {
     .filter((x): x is { chantier: ChantierSuivi; retard: RetardChantier } => x.retard !== null);
 
   const tachesEnRetard = taches.filter((t) => retardTache(t.echeance, aujourdhui) !== null);
+  const formationsAlerte = formations
+    .map((f) => ({ formation: f, statut: statutFormation(f.echeance, aujourdhui, seuilJours) }))
+    .filter((x) => x.statut === "expiree" || x.statut === "bientot");
 
   const relevesEtat = points.map((p) => avecEtat(p, aujourdhui));
   const relevesHorsSeuil = relevesEtat.filter((p) => p.hors_seuil !== null);
@@ -370,7 +393,8 @@ export default async function PageAujourdhui() {
     interventionsEnRetard.length +
     chantiersEnRetard.length +
     contratsAlerte.length +
-    tachesEnRetard.length;
+    tachesEnRetard.length +
+    formationsAlerte.length;
   const rienDUrgent = aTraiter === 0;
   const jalon = jalonDuJour({ aujourdhui, plans, reserves, interventions, contrats: contratsAlerte });
   const groupes = regroupements(plans, aujourdhui, seuilJours);
@@ -451,6 +475,25 @@ export default async function PageAujourdhui() {
             })}
           </ul>
         )}
+      </Groupe>
+
+      <Groupe theme="formations" titre="Formations à renouveler" nombre={formationsAlerte.length}>
+        <ul className="grid gap-2">
+          {formationsAlerte.map(({ formation: f, statut }) => (
+            <li key={f.id}>
+              <Link href={`/formations/${f.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+                <span className="font-medium">
+                  {f.agent_nom} · {f.type_libelle}
+                </span>
+                <span className={cn("text-sm", statut === "expiree" && "font-medium text-destructive")}>
+                  {statut === "expiree"
+                    ? `Expirée depuis le ${formaterDate(f.echeance)}`
+                    : `Échéance le ${formaterDate(f.echeance)} (dans ${joursAvantEcheance(f.echeance!, aujourdhui)} j)`}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
       </Groupe>
 
       <Groupe theme="controles" titre="Contrôles" nombre={enRetard.length + jamais.length + aEcheance.length}>
