@@ -45,7 +45,7 @@ import { avecEtat, type PointAvecEtat } from "@/lib/requetes/releves";
 import { verifications } from "@/lib/requetes/verifications";
 import { retardTache } from "@/lib/metier/taches";
 import { tachesOuvertes } from "@/lib/requetes/taches";
-import { formationsActuelles } from "@/lib/requetes/formations";
+import { formationsActuelles, formationsAVenir } from "@/lib/requetes/formations";
 import { joursAvantEcheance, statutFormation } from "@/lib/metier/formations";
 import { BoutonResoudre } from "./taches/bouton-tache";
 import { cn } from "@/lib/utils";
@@ -343,6 +343,7 @@ export default async function PageAujourdhui() {
     aVerifier,
     taches,
     formations,
+    formationsPrevues,
     sauvegarde,
   } = await requete(async (tx, u) => {
     const donnees = await donneesAujourdhui(tx);
@@ -351,7 +352,8 @@ export default async function PageAujourdhui() {
       ...donnees,
       aVerifier: await verifications(tx, donnees.plans),
       taches: await tachesOuvertes(tx),
-      formations: await formationsActuelles(tx),
+      formations: await formationsActuelles(tx, aujourdhui),
+      formationsPrevues: await formationsAVenir(tx, aujourdhui),
       sauvegarde: u.role === "admin" ? await etatSauvegarde(tx, aujourdhui) : null,
     };
   });
@@ -374,9 +376,18 @@ export default async function PageAujourdhui() {
     .filter((x): x is { chantier: ChantierSuivi; retard: RetardChantier } => x.retard !== null);
 
   const tachesEnRetard = taches.filter((t) => retardTache(t.echeance, aujourdhui) !== null);
+  // Un renouvellement déjà planifié apaise l'alerte « bientôt » (pas celle d'une formation expirée).
+  const paires = new Set(formationsPrevues.map((a) => `${a.agent_id}|${a.type_formation_id}`));
   const formationsAlerte = formations
     .map((f) => ({ formation: f, statut: statutFormation(f.echeance, aujourdhui, seuilJours) }))
-    .filter((x) => x.statut === "expiree" || x.statut === "bientot");
+    .filter(
+      (x) =>
+        x.statut === "expiree" ||
+        (x.statut === "bientot" && !paires.has(`${x.formation.agent_id}|${x.formation.type_formation_id}`)),
+    );
+  const sessionsProches = formationsPrevues.filter(
+    (a) => joursAvantEcheance(a.date_formation, aujourdhui) <= seuilJours,
+  );
 
   const relevesEtat = points.map((p) => avecEtat(p, aujourdhui));
   const relevesHorsSeuil = relevesEtat.filter((p) => p.hors_seuil !== null);
@@ -477,8 +488,8 @@ export default async function PageAujourdhui() {
         )}
       </Groupe>
 
-      <Groupe theme="formations" titre="Formations à renouveler" nombre={formationsAlerte.length}>
-        <ul className="grid gap-2">
+      <Groupe theme="formations" titre="Formations" nombre={formationsAlerte.length + sessionsProches.length}>
+        <Section titre="À renouveler" nombre={formationsAlerte.length} ton="rouge">
           {formationsAlerte.map(({ formation: f, statut }) => (
             <li key={f.id}>
               <Link href={`/formations/${f.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
@@ -493,7 +504,24 @@ export default async function PageAujourdhui() {
               </Link>
             </li>
           ))}
-        </ul>
+        </Section>
+        {sessionsProches.length > 0 && (
+          <Section titre="Sessions à venir" nombre={sessionsProches.length} ton="neutre">
+            {sessionsProches.map((a) => (
+              <li key={a.id}>
+                <Link href={`/formations/${a.id}`} className="grid gap-0.5 rounded-lg border bg-card p-3">
+                  <span className="font-medium">
+                    {a.agent_nom} · {a.type_libelle}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    Le {formaterDate(a.date_formation)}
+                    {a.duree_heures !== null && ` · ${a.duree_heures} h`}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </Section>
+        )}
       </Groupe>
 
       <Groupe theme="controles" titre="Contrôles" nombre={enRetard.length + jamais.length + aEcheance.length}>

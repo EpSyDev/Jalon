@@ -12,7 +12,7 @@ import {
   type StatutFormation,
 } from "@/lib/metier/formations";
 import { seuilAEcheance } from "@/lib/requetes/contrats";
-import { formationsActuelles } from "@/lib/requetes/formations";
+import { formationsActuelles, formationsAVenir } from "@/lib/requetes/formations";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Formations — Jalon" };
@@ -26,12 +26,19 @@ const STYLE: Record<StatutFormation, string> = {
 
 export default async function PageFormations() {
   const aujourdhui = aujourdhuiParis();
-  const { formations, seuil, peutEcrire } = await requete(async (tx, u) => ({
-    formations: await formationsActuelles(tx),
+  const { formations, avenir, seuil, peutEcrire } = await requete(async (tx, u) => ({
+    formations: await formationsActuelles(tx, aujourdhui),
+    avenir: await formationsAVenir(tx, aujourdhui),
     seuil: await seuilAEcheance(tx),
     peutEcrire: u.role !== "lecture",
   }));
   const lignes = formations.map((f) => ({ ...f, statut: statutFormation(f.echeance, aujourdhui, seuil) }));
+  // Session déjà prévue par agent et par type (avenir est trié : la première est la plus proche).
+  const prochaine = new Map<string, string>();
+  for (const a of avenir) {
+    const cle = `${a.agent_id}|${a.type_formation_id}`;
+    if (!prochaine.has(cle)) prochaine.set(cle, a.date_formation);
+  }
   const nbExpirees = lignes.filter((l) => l.statut === "expiree").length;
   const nbBientot = lignes.filter((l) => l.statut === "bientot").length;
 
@@ -62,6 +69,38 @@ export default async function PageFormations() {
             .filter(Boolean)
             .join(" · ")}
         </p>
+      )}
+
+      {avenir.length > 0 && (
+        <section className="grid gap-2" aria-labelledby="titre-avenir">
+          <h2 id="titre-avenir" className="flex items-baseline gap-2 text-lg font-semibold">
+            À venir
+            <span className="text-sm font-normal text-muted-foreground">{avenir.length}</span>
+          </h2>
+          <ul className="grid gap-2 border-l-4 border-l-sky-600 pl-3">
+            {avenir.map((a) => (
+              <li key={a.id}>
+                <Link
+                  href={peutEcrire ? `/formations/${a.id}` : "#"}
+                  aria-disabled={!peutEcrire}
+                  className="flex items-center gap-3 rounded-lg border bg-card p-3 hover:bg-muted/50"
+                >
+                  <span className="grid min-w-0 flex-1 gap-0.5">
+                    <span className="font-medium">
+                      {a.agent_nom} <span className="text-muted-foreground">· {a.type_libelle}</span>
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      Le {formaterDate(a.date_formation)}
+                      {a.duree_heures !== null && ` · ${a.duree_heures} h`}
+                      {a.organisme && ` · ${a.organisme}`}
+                    </span>
+                  </span>
+                  {peutEcrire && <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {lignes.length === 0 ? (
@@ -98,6 +137,11 @@ export default async function PageFormations() {
                         {l.duree_heures !== null && ` · ${l.duree_heures} h`}
                         {l.organisme && ` · ${l.organisme}`}
                       </span>
+                      {prochaine.get(`${l.agent_id}|${l.type_formation_id}`) && (
+                        <span className="font-medium text-sky-800 dark:text-sky-300">
+                          Prochaine session le {formaterDate(prochaine.get(`${l.agent_id}|${l.type_formation_id}`)!)}
+                        </span>
+                      )}
                     </span>
                   </span>
                   {peutEcrire && <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />}

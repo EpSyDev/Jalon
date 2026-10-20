@@ -2,7 +2,6 @@ import Link from "next/link";
 import { z } from "zod";
 import { Formulaire } from "@/components/formulaire";
 import { requete } from "@/lib/auth";
-import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { referentielFormations } from "@/lib/requetes/formations";
 import { creerFormation } from "../actions";
 import { ChampsAgentType, ChampsFormation } from "../champs-formation";
@@ -22,7 +21,7 @@ export default async function PageNouvelleFormation({ searchParams }: PageProps<
       <h1 className="text-2xl font-semibold">Formation suivie</h1>
       <Formulaire action={creerFormation} libelle="Enregistrer la formation">
         <ChampsAgentType agents={agents} types={types} agentId={uuidOuRien(agent)} typeId={uuidOuRien(type)} />
-        <ChampsFormation aujourdhui={aujourdhuiParis()} />
+        <ChampsFormation />
       </Formulaire>
     </div>
   );

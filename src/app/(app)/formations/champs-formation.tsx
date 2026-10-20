@@ -2,16 +2,16 @@ import { ChampListe, ChampTexte, ChampZoneTexte } from "@/components/champs";
 import type { FormationEtat } from "@/lib/requetes/formations";
 
 /** Champs communs à la saisie et à la modification d'une formation (hors agent et type). */
-export function ChampsFormation({ formation, aujourdhui }: { formation?: FormationEtat; aujourdhui: string }) {
+export function ChampsFormation({ formation }: { formation?: FormationEtat }) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
         <ChampTexte
           nom="date_formation"
           libelle="Date de la formation"
+          aide="Passée, ou à venir pour une session prévue."
           type="date"
           required
-          max={aujourdhui}
           defaultValue={formation?.date_formation}
         />
         <ChampTexte

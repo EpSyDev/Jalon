@@ -5,7 +5,6 @@ import { Formulaire } from "@/components/formulaire";
 import { LienBouton } from "@/components/lien-bouton";
 import { requete } from "@/lib/auth";
 import { formaterDate } from "@/lib/format";
-import { aujourdhuiParis } from "@/lib/metier/echeance";
 import { historiqueFormation, lireFormation } from "@/lib/requetes/formations";
 import { archiverFormation, modifierFormation } from "../actions";
 import { ChampsFormation } from "../champs-formation";
@@ -43,7 +42,7 @@ export default async function PageFormation({ params }: PageProps<"/formations/[
         Renouveler (nouvelle session)
       </LienBouton>
       <Formulaire action={modifierFormation.bind(null, id)} libelle="Enregistrer">
-        <ChampsFormation formation={formation} aujourdhui={aujourdhuiParis()} />
+        <ChampsFormation formation={formation} />
       </Formulaire>
 
       {historique.length > 1 && (
